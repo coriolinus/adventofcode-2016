@@ -3,4 +3,12 @@ name = "day03"
 version = "0.1.0"
 authors = ["Peter Goodspeed-Niklaus <peter.r.goodspeedniklaus@gmail.com>"]
 
+[lib]
+name = "day03lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "day03bin"
+path = "src/main.rs"
+
 [dependencies]
