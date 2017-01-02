@@ -48,3 +48,134 @@
 //!
 //! Your puzzle input is the instructions from the document you found at the front desk.
 //! What is the bathroom code?
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Instruction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl Instruction {
+    pub fn from_char(ch: char) -> Option<Instruction> {
+        use Instruction::*;
+
+        match ch {
+            'u' | 'U' => Some(Up),
+            'd' | 'D' => Some(Down),
+            'l' | 'L' => Some(Left),
+            'r' | 'R' => Some(Right),
+            _ => None,
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Vec<Instruction>> {
+        s.trim().chars().map(|c| Instruction::from_char(c)).collect()
+    }
+}
+
+/// Represents a key on a keypad
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Key(pub u8);
+
+impl Key {
+    /// Construct a Key from anything which can infallibly convert to a u8
+    pub fn from_int<T>(n: T) -> Option<Key>
+        where u8: From<T>
+    {
+        let n = n.into();
+        if n > 0 && n < 10 { Some(Key(n)) } else { None }
+    }
+
+    pub fn shift(&self, inst: Instruction) -> Key {
+        use Instruction::*;
+
+        match inst {
+            Up => if self.0 > 3 { Key(self.0 - 3) } else { *self },
+            Down => if self.0 <= 6 { Key(self.0 + 3) } else { *self },
+            Left => {
+                if self.0 % 3 != 1 {
+                    Key(self.0 - 1)
+                } else {
+                    *self
+                }
+            }
+            Right => {
+                if self.0 % 3 != 0 {
+                    Key(self.0 + 1)
+                } else {
+                    *self
+                }
+            }
+        }
+    }
+
+    pub fn shift_many<Instructions>(&self, insts: Instructions) -> Key
+        where Instructions: IntoIterator<Item = Instruction>
+    {
+        let mut k = *self;
+        for inst in insts {
+            k = k.shift(inst);
+        }
+        k
+    }
+}
+
+impl From<Key> for u8 {
+    fn from(k: Key) -> u8 {
+        k.0
+    }
+}
+
+impl Default for Key {
+    fn default() -> Key {
+        Key(5)
+    }
+}
+
+impl ::std::fmt::Display for Key {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Parse a number of lines into a code.
+pub fn decode(lines: &str) -> Option<String> {
+    let mut key = Key::default();
+    let mut out = String::new();
+
+    for line in lines.lines() {
+        if let Some(instructions) = Instruction::from_str(line) {
+            key = key.shift_many(instructions);
+            out += &key.to_string();
+        } else {
+            return None;
+        }
+    }
+
+    Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// From the example:
+    ///
+    /// ```notrust
+    /// ULL
+    /// RRDDD
+    /// LURDL
+    /// UUUUD
+    /// ```
+    ///
+    /// produces "1985"
+    fn test_decode() {
+        let lines = "ULL\nRRDDD\nLURDL\nUUUUD\n";
+        let result = decode(lines).expect("Decoding failed when it shouldn't");
+        println!("Example result (should be '1985'): {}", result);
+        assert!(&result == "1985");
+    }
+}
