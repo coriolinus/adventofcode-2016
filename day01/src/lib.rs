@@ -131,7 +131,11 @@ impl Coordinates {
     }
 
     pub fn follow(&self, directions: Directions) -> Coordinates {
-        unimplemented!()
+        let mut coords = *self;
+        for direction in directions {
+            coords = coords.add(direction);
+        }
+        coords
     }
 }
 
@@ -155,5 +159,64 @@ mod tests {
         // test a different initial value
         assert!(Coordinates::new(Facing::East, 0, -5).add((Rotation::Left, 5)) ==
                 Coordinates::default());
+    }
+
+    fn get_first_case() -> Directions {
+        use Rotation::*;
+
+        vec![
+            (Right, 2),
+            (Left, 3),
+        ]
+    }
+
+    fn get_second_case() -> Directions {
+        use Rotation::*;
+
+        vec![
+            (Right, 2),
+            (Right, 2),
+            (Right, 2),
+        ]
+    }
+
+    fn get_third_case() -> Directions {
+        use Rotation::*;
+
+        vec![
+            (Right, 5),
+            (Left, 5),
+            (Right, 5),
+            (Left, 3),
+        ]
+    }
+
+    #[test]
+    fn test_add_compound() {
+        assert!(Coordinates::default()
+            .add((Rotation::Right, 1))
+            .add((Rotation::Right, 1)) == Coordinates::new(Facing::South, 1, -1));
+
+        assert!(Coordinates::new(Facing::South, 1, -1)
+            .add((Rotation::Right, 1))
+            .add((Rotation::Right, 1)) == Coordinates::default());
+    }
+
+    #[test]
+    fn test_follow_first() {
+        assert!(Coordinates::default().follow(get_first_case()) ==
+                Coordinates::new(Facing::North, 2, 3));
+    }
+
+    #[test]
+    fn test_follow_second() {
+        assert!(Coordinates::default().follow(get_second_case()) ==
+                Coordinates::new(Facing::West, 0, -2));
+    }
+
+    #[test]
+    fn test_follow_third() {
+        assert!(Coordinates::default().follow(get_third_case()) ==
+                Coordinates::new(Facing::North, 10, 8));
     }
 }
