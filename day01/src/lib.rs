@@ -130,10 +130,10 @@ impl Coordinates {
         }
     }
 
-    pub fn follow(&self, directions: Directions) -> Coordinates {
+    pub fn follow(&self, directions: &Directions) -> Coordinates {
         let mut coords = *self;
         for direction in directions {
-            coords = coords.add(direction);
+            coords = coords.add(*direction);
         }
         coords
     }
@@ -208,34 +208,34 @@ mod tests {
 
     #[test]
     fn test_follow_first() {
-        assert!(Coordinates::default().follow(get_first_case()) ==
+        assert!(Coordinates::default().follow(&get_first_case()) ==
                 Coordinates::new(Facing::North, 2, 3));
     }
 
     #[test]
     fn test_follow_second() {
-        assert!(Coordinates::default().follow(get_second_case()) ==
+        assert!(Coordinates::default().follow(&get_second_case()) ==
                 Coordinates::new(Facing::West, 0, -2));
     }
 
     #[test]
     fn test_follow_third() {
-        assert!(Coordinates::default().follow(get_third_case()) ==
+        assert!(Coordinates::default().follow(&get_third_case()) ==
                 Coordinates::new(Facing::South, 10, 2));
     }
 
     #[test]
     fn test_first() {
-        assert!(Coordinates::default().follow(get_first_case()).manhattan() == 5);
+        assert!(Coordinates::default().follow(&get_first_case()).manhattan() == 5);
     }
 
     #[test]
     fn test_second() {
-        assert!(Coordinates::default().follow(get_second_case()).manhattan() == 2);
+        assert!(Coordinates::default().follow(&get_second_case()).manhattan() == 2);
     }
 
     #[test]
     fn test_third() {
-        assert!(Coordinates::default().follow(get_third_case()).manhattan() == 12);
+        assert!(Coordinates::default().follow(&get_third_case()).manhattan() == 12);
     }
 }
