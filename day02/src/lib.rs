@@ -49,6 +49,9 @@
 //! Your puzzle input is the instructions from the document you found at the front desk.
 //! What is the bathroom code?
 
+#[macro_use]
+extern crate lazy_static;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction {
     Up,
@@ -75,35 +78,70 @@ impl Instruction {
     }
 }
 
+pub type Keypad = Vec<Vec<Option<char>>>;
+
+lazy_static! {
+    static ref KEYPAD: Keypad = vec![
+        vec![None, None, Some('1'), None, None],
+        vec![None, Some('2'), Some('3'), Some('4'), None],
+        vec![Some('5'), Some('6'), Some('7'), Some('8'), Some('9')],
+        vec![None, Some('A'), Some('B'), Some('C'), None],
+        vec![None, None, Some('D'), None, None],
+        ];
+}
 /// Represents a key on a keypad
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Key(pub u8);
+pub struct Key {
+    x: usize,
+    y: usize,
+}
 
 impl Key {
-    /// Construct a Key from anything which can infallibly convert to a u8
-    pub fn from_int<T>(n: T) -> Option<Key>
-        where u8: From<T>
-    {
-        let n = n.into();
-        if n > 0 && n < 10 { Some(Key(n)) } else { None }
+    /// Private constructor which allows direct setting
+    fn new(x: usize, y: usize) -> Key {
+        Key { x: x, y: y }
+    }
+
+    /// Construct a Key from anything which appears on KEYPAD
+    pub fn from_char(c: char) -> Option<Key> {
+        for (y, line) in KEYPAD.iter().enumerate() {
+            for (x, key_char) in line.iter().enumerate() {
+                if &Some(c) == key_char {
+                    return Some(Key::new(x, y));
+                }
+            }
+        }
+        None
     }
 
     pub fn shift(&self, inst: Instruction) -> Key {
         use Instruction::*;
 
         match inst {
-            Up => if self.0 > 3 { Key(self.0 - 3) } else { *self },
-            Down => if self.0 <= 6 { Key(self.0 + 3) } else { *self },
+            Up => {
+                if self.y > 0 && KEYPAD[self.y - 1][self.x] != None {
+                    Key::new(self.x, self.y - 1)
+                } else {
+                    *self
+                }
+            }
+            Down => {
+                if self.y < KEYPAD.len() - 1 && KEYPAD[self.y + 1][self.x] != None {
+                    Key::new(self.x, self.y + 1)
+                } else {
+                    *self
+                }
+            }
             Left => {
-                if self.0 % 3 != 1 {
-                    Key(self.0 - 1)
+                if self.x > 0 && KEYPAD[self.y][self.x - 1] != None {
+                    Key::new(self.x - 1, self.y)
                 } else {
                     *self
                 }
             }
             Right => {
-                if self.0 % 3 != 0 {
-                    Key(self.0 + 1)
+                if self.x < KEYPAD[self.y].len() - 1 && KEYPAD[self.y][self.x + 1] != None {
+                    Key::new(self.x + 1, self.y)
                 } else {
                     *self
                 }
@@ -122,21 +160,17 @@ impl Key {
     }
 }
 
-impl From<Key> for u8 {
-    fn from(k: Key) -> u8 {
-        k.0
-    }
-}
-
 impl Default for Key {
     fn default() -> Key {
-        Key(5)
+        Key::from_char('5').expect("Invalid KEYPAD; default not found")
     }
 }
 
 impl ::std::fmt::Display for Key {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f,
+               "{}",
+               KEYPAD[self.y][self.x].expect("Invalid Key; not on keypad"))
     }
 }
 
@@ -171,11 +205,11 @@ mod tests {
     /// UUUUD
     /// ```
     ///
-    /// produces "1985"
+    /// produces "5DB3"
     fn test_decode() {
         let lines = "ULL\nRRDDD\nLURDL\nUUUUD\n";
         let result = decode(lines).expect("Decoding failed when it shouldn't");
-        println!("Example result (should be '1985'): {}", result);
-        assert!(&result == "1985");
+        println!("Example result (should be '5DB3'): {}", result);
+        assert!(&result == "5DB3");
     }
 }
