@@ -137,6 +137,10 @@ impl Coordinates {
         }
         coords
     }
+
+    pub fn manhattan(&self) -> isize {
+        self.x.abs() + self.y.abs()
+    }
 }
 
 #[cfg(test)]
@@ -187,7 +191,7 @@ mod tests {
             (Right, 5),
             (Left, 5),
             (Right, 5),
-            (Left, 3),
+            (Right, 3),
         ]
     }
 
@@ -217,6 +221,21 @@ mod tests {
     #[test]
     fn test_follow_third() {
         assert!(Coordinates::default().follow(get_third_case()) ==
-                Coordinates::new(Facing::North, 10, 8));
+                Coordinates::new(Facing::South, 10, 2));
+    }
+
+    #[test]
+    fn test_first() {
+        assert!(Coordinates::default().follow(get_first_case()).manhattan() == 5);
+    }
+
+    #[test]
+    fn test_second() {
+        assert!(Coordinates::default().follow(get_second_case()).manhattan() == 2);
+    }
+
+    #[test]
+    fn test_third() {
+        assert!(Coordinates::default().follow(get_third_case()).manhattan() == 12);
     }
 }
