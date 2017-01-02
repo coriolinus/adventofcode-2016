@@ -19,6 +19,8 @@
 //! R5, L5, R5, R3 leaves you 12 blocks away.
 //! How many blocks away is Easter Bunny HQ?
 
+
+
 #[derive(Debug, Copy, Clone)]
 pub enum Rotation {
     Left,
@@ -138,6 +140,48 @@ impl Coordinates {
         coords
     }
 
+    pub fn follow_until_duplicate(&self, directions: &Directions) -> Option<Coordinates> {
+        use std::collections::HashSet;
+
+        let mut visited = HashSet::new();
+        let mut coords = *self;
+
+        // add current location before moving
+        visited.insert((coords.x, coords.y));
+
+        for direction in directions {
+            let (rotation, distance) = *direction;
+            coords.facing = coords.facing.turn(rotation);
+
+            // step over each point individually, and record them
+            for _ in 0..distance {
+                let (x, y) = {
+                    use Facing::*;
+                    match coords.facing {
+                        North => (coords.x, coords.y + 1),
+                        East => (coords.x + 1, coords.y),
+                        South => (coords.x, coords.y - 1),
+                        West => (coords.x - 1, coords.y),
+                    }
+                };
+
+                // update our working coordinates
+                coords.x = x;
+                coords.y = y;
+
+                // if the point is already visited, return early
+                // otherwise record it and continue
+                if visited.contains(&(x, y)) {
+                    return Some(coords);
+                } else {
+                    visited.insert((x, y));
+                }
+
+            }
+        }
+        None
+    }
+
     pub fn manhattan(&self) -> isize {
         self.x.abs() + self.y.abs()
     }
@@ -237,5 +281,23 @@ mod tests {
     #[test]
     fn test_third() {
         assert!(Coordinates::default().follow(&get_third_case()).manhattan() == 12);
+    }
+
+    #[test]
+    fn test_follow_until_duplicate() {
+        let directions = {
+            use Rotation::*;
+
+            vec![
+                (Right, 8),
+                (Right, 4),
+                (Right, 4),
+                (Right, 8),
+            ]
+        };
+
+        let fud = Coordinates::default().follow_until_duplicate(&directions);
+        assert!(fud == Some(Coordinates::new(Facing::North, 4, 0)));
+        assert!(fud.unwrap().manhattan() == 4);
     }
 }
