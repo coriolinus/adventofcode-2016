@@ -50,6 +50,55 @@ pub fn parse_lines_as_usize(input: &str) -> Option<Vec<Triangle<usize>>> {
     parse_lines(input, &|s: &str| s.parse::<usize>().ok())
 }
 
+pub fn parse_lines_vertical<T, F>(input: &str, parser: &F) -> Option<Vec<Triangle<T>>>
+    where F: Fn(&str) -> Option<T>,
+          T: Copy
+{
+    let mut results = Vec::new();
+
+    // Partials: a list of N Vecs containing partial triangles
+    let mut partials = Vec::new();
+
+    // filter out empty lines in a repeatable way
+    let lines = || input.lines().filter(|line| !line.is_empty());
+
+    // initialize the partials with empty vectors
+    if let Some(line) = lines().next() {
+        // assume every line has the same number of columns,
+        // so we can safely examine the first
+        for _ in line.split_whitespace() {
+            partials.push(Vec::new());
+        }
+    }
+
+    for (number, line) in lines().enumerate() {
+
+        for (item, mut partial) in line.split_whitespace().zip(partials.iter_mut()) {
+            if let Some(value) = parser(item) {
+                partial.push(value);
+            } else {
+                return None;
+            }
+        }
+
+
+        if number % 3 == 2 {
+            // every third line; every partial should have three items now
+            for mut partial in partials.iter_mut() {
+                assert!(partial.len() == 3, "Wrong number of columns in input line");
+                results.push([partial[0], partial[1], partial[2]]);
+                partial.clear();
+            }
+        }
+    }
+
+    Some(results)
+}
+
+pub fn parse_lines_vertical_as_usize(input: &str) -> Option<Vec<Triangle<usize>>> {
+    parse_lines_vertical(input, &|s: &str| s.parse::<usize>().ok())
+}
+
 pub fn count_valid<T>(ts: Vec<Triangle<T>>) -> usize
     where T: Copy + Ord + ::std::ops::Add<Output = T>
 {
@@ -76,5 +125,28 @@ mod tests {
         let t3 = [100, 80, 60];
 
         assert!([t1, t2, t3].iter().all(|t| is_possible(t)));
+    }
+
+    #[test]
+    fn test_parse_vertical() {
+        let input = "101 301 501\n102 302 502\n103 303 503\n\
+                     201 401 601\n202 402 602\n203 403 603\n";
+
+        let expected = vec![
+            [101, 102, 103],
+            [301, 302, 303],
+            [501, 502, 503],
+            [201, 202, 203],
+            [401, 402, 403],
+            [601, 602, 603],
+        ];
+
+        if let Some(parsed) = parse_lines_vertical_as_usize(input) {
+            println!("Parsed into:");
+            println!("{:?}", parsed);
+            assert!(parsed == expected, "Parse produced unexpected results");
+        } else {
+            panic!("Failed to parse valid input");
+        }
     }
 }
