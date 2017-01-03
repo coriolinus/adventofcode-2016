@@ -12,3 +12,4 @@ name = "day03bin"
 path = "src/main.rs"
 
 [dependencies]
+util = { path = "../util" }
