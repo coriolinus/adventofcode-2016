@@ -59,3 +59,31 @@ fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64
     }
     None
 }
+
+pub struct GetPassword {
+    prefix: String,
+    current_suffix: u64,
+}
+
+impl GetPassword {
+    pub fn new(prefix: &str) -> GetPassword {
+        GetPassword {
+            prefix: prefix.to_string(),
+            current_suffix: 0,
+        }
+    }
+}
+
+impl Iterator for GetPassword {
+    type Item = char;
+
+    fn next(&mut self) -> Option<char> {
+        if let Some((next_suffix, ch)) = next_suffix_with_valid_hash(&self.prefix,
+                                                                     self.current_suffix) {
+            self.current_suffix = next_suffix;
+            Some(ch)
+        } else {
+            None
+        }
+    }
+}
