@@ -34,7 +34,7 @@ extern crate crypto;
 use crypto::md5::Md5;
 use crypto::digest::Digest;
 
-fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64, char)> {
+pub fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64, char)> {
     let mut hasher = Md5::new();
 
     let key = prefix.as_bytes();
@@ -78,12 +78,42 @@ impl Iterator for GetPassword {
     type Item = char;
 
     fn next(&mut self) -> Option<char> {
-        if let Some((next_suffix, ch)) = next_suffix_with_valid_hash(&self.prefix,
+        if let Some((last_suffix, ch)) = next_suffix_with_valid_hash(&self.prefix,
                                                                      self.current_suffix) {
-            self.current_suffix = next_suffix;
+            self.current_suffix = last_suffix + 1;
             Some(ch)
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_next() {
+        let prefix = "abc";
+        let result0 = next_suffix_with_valid_hash(prefix, 0);
+        println!("First result: {:?}", result0);
+
+        assert!(result0 == Some((3231929, '1')));
+
+        let result1 = next_suffix_with_valid_hash(prefix, 3231929);
+        println!("Second result: {:?}", result1);
+
+        assert!(result1 == Some((5017308, '8')));
+
+        let result2 = next_suffix_with_valid_hash(prefix, 5017308);
+        println!("Third result: {:?}", result2);
+
+        assert!(result2 == Some((5278568, 'f')));
+    }
+
+    #[test]
+    fn test_get_first_eight() {
+        let result = GetPassword::new("abc").take(8).collect::<String>();
+        assert!(&result == "18f47a30");
     }
 }
