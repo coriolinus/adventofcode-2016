@@ -67,3 +67,54 @@ pub fn validate(room: &str) -> bool {
 pub fn count_valid_lines(lines: &str) -> usize {
     lines.lines().map(|line| line.trim()).filter(|line| validate(line)).count()
 }
+
+pub fn sum_valid_sectors(lines: &str) -> usize {
+    lines.lines()
+        .map(|line| line.trim())
+        .filter(|line| validate(line))
+        .map(|line| {
+            ROOM_RE.captures(line).unwrap()["sector"]
+                .parse::<usize>()
+                .expect("Error parsing sector ID as usize")
+        })
+        .sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_examples() -> Vec<String> {
+        vec![
+            "aaaaa-bbb-z-y-x-123[abxyz]",
+            "a-b-c-d-e-f-g-h-987[abcde]",
+            "not-a-real-room-404[oarel]",
+            "totally-real-room-200[decoy]",
+            "doesn't match the regex",
+        ]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn test_validate() {
+        for (room, expected) in get_examples()
+            .iter()
+            .zip([true, true, true, false, false].into_iter()) {
+            assert!(validate(room) == *expected);
+        }
+    }
+
+    #[test]
+    fn test_count_valid_lines() {
+        let lines = get_examples().join("\n");
+        assert!(count_valid_lines(&lines) == 3);
+    }
+
+    #[test]
+    fn test_sum_valid_sectors() {
+        let lines = get_examples().join("\n");
+        assert!(sum_valid_sectors(&lines) == 1514);
+    }
+}
