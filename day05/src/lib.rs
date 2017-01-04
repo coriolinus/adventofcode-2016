@@ -34,7 +34,7 @@ extern crate crypto;
 use crypto::md5::Md5;
 use crypto::digest::Digest;
 
-pub fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64, char)> {
+fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64, char)> {
     let mut hasher = Md5::new();
 
     let key = prefix.as_bytes();
@@ -58,6 +58,12 @@ pub fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<
         hasher.reset();
     }
     None
+}
+
+#[cfg(test)]
+/// Hack to enable testing of module private function above
+pub fn pub_next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64, char)> {
+    next_suffix_with_valid_hash(prefix, initial_suffix)
 }
 
 pub struct GetPassword {
@@ -93,25 +99,47 @@ mod tests {
     use super::*;
 
     #[test]
+    /// Test get_next using a known input which should return immediately,
+    /// and one which should iterate once before success.
+    ///
+    /// This ensure the function works, without being as expensive as a full zero-knowledge run.
+    fn test_get_next_works() {
+        let prefix = "abc";
+        let should_work = 3231929;
+        let expected = Some((should_work, '1'));
+
+        assert!(pub_next_suffix_with_valid_hash(prefix, should_work) == expected);
+        assert!(pub_next_suffix_with_valid_hash(prefix, should_work - 1) == expected);
+    }
+
+    #[test]
+    #[ignore]
+    /// Test function which gets next passing number.
+    ///
+    /// This runs the examples, which are somewhat expensive.
+    /// Therefore, ignored by default.
+    /// To run the ignored tests:
+    /// `cargo test -- --ignored`
     fn test_get_next() {
         let prefix = "abc";
-        let result0 = next_suffix_with_valid_hash(prefix, 0);
+        let result0 = pub_next_suffix_with_valid_hash(prefix, 0);
         println!("First result: {:?}", result0);
 
         assert!(result0 == Some((3231929, '1')));
 
-        let result1 = next_suffix_with_valid_hash(prefix, 3231929);
+        let result1 = pub_next_suffix_with_valid_hash(prefix, 3231930);
         println!("Second result: {:?}", result1);
 
         assert!(result1 == Some((5017308, '8')));
 
-        let result2 = next_suffix_with_valid_hash(prefix, 5017308);
+        let result2 = pub_next_suffix_with_valid_hash(prefix, 5017309);
         println!("Third result: {:?}", result2);
 
         assert!(result2 == Some((5278568, 'f')));
     }
 
     #[test]
+    #[ignore]
     fn test_get_first_eight() {
         let result = GetPassword::new("abc").take(8).collect::<String>();
         assert!(&result == "18f47a30");
