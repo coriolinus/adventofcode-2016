@@ -23,15 +23,21 @@
 //!
 //! What is the sum of the sector IDs of the real rooms?
 
+
+#[macro_use]
+extern crate lazy_static;
+
+// this was _way_ more work than this problem strictly required, but then that's
+// 200 or so lines of code nobody else has to write in Rust again.
+extern crate counter;
+use counter::Counter;
+
 // Clearly we're going to have to parse these strings, and it looks like regexes are the
 // right tool for the job. In python, I'd use this one:
 // r"^(?P<name>[a-zA-Z\-]+)(?:(?<!\-)-)(?P<sector>\d+)\[(?P<checksum>[a-zA-Z]{5})\]$"
 // We just need to translate that to Rust.
 extern crate regex;
 use regex::Regex;
-
-#[macro_use]
-extern crate lazy_static;
 
 lazy_static! {
     static ref ROOM_RE: Regex = Regex::new(r"(?x)^
@@ -40,4 +46,8 @@ lazy_static! {
         (?P<sector>\d+)        # sector number.
         \[(?P<checksum>[a-zA-Z]{5})\]  # checksum
         $").unwrap();
+}
+
+pub fn make_checksum(string: &str) -> String {
+    unimplemented!()
 }
