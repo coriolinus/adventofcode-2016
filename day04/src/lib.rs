@@ -48,6 +48,22 @@ lazy_static! {
         $").unwrap();
 }
 
+/// Construct a checksum per the Santa Rules
 pub fn make_checksum(string: &str) -> String {
-    unimplemented!()
+    let mut counter = Counter::init(string.chars());
+    counter.map.remove(&'-');
+    counter.most_common_ordered().take(5).map(|(ch, _)| ch).collect()
+}
+
+/// `true` if a room string is valid
+pub fn validate(room: &str) -> bool {
+    if let Some(captures) = ROOM_RE.captures(room) {
+        make_checksum(&captures["name"]) == captures["checksum"]
+    } else {
+        false
+    }
+}
+
+pub fn count_valid_lines(lines: &str) -> usize {
+    lines.lines().map(|line| line.trim()).filter(|line| validate(line)).count()
 }
