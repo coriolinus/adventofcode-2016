@@ -34,7 +34,7 @@ extern crate crypto;
 use crypto::md5::Md5;
 use crypto::digest::Digest;
 
-fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64, char)> {
+fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64, char, char)> {
     let mut hasher = Md5::new();
 
     let key = prefix.as_bytes();
@@ -48,12 +48,13 @@ fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64
         // count first five as digits instead of rendering as hex
         let first_five = output[0] as i32 + output[1] as i32 + (output[2] >> 4) as i32;
         if first_five == 0 {
-            let sixth_hex = hasher.result_str()
-                .chars()
-                .skip(5)
-                .next()
+            let hashresults = hasher.result_str();
+            let mut hexdigits = hashresults.chars().skip(5);
+            let position = hexdigits.next()
                 .expect("md5 should produce more than 5 digits of output");
-            return Some((suffix, sixth_hex));
+            let value = hexdigits.next()
+                .expect("md5 should produce more than 6 digits of output");
+            return Some((suffix, position, value));
         }
         hasher.reset();
     }
@@ -62,17 +63,19 @@ fn next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64
 
 #[cfg(test)]
 /// Hack to enable testing of module private function above
-pub fn pub_next_suffix_with_valid_hash(prefix: &str, initial_suffix: u64) -> Option<(u64, char)> {
+pub fn pub_next_suffix_with_valid_hash(prefix: &str,
+                                       initial_suffix: u64)
+                                       -> Option<(u64, char, char)> {
     next_suffix_with_valid_hash(prefix, initial_suffix)
 }
 
-pub struct GetPassword {
+struct GetPassword {
     prefix: String,
     current_suffix: u64,
 }
 
 impl GetPassword {
-    pub fn new(prefix: &str) -> GetPassword {
+    fn new(prefix: &str) -> GetPassword {
         GetPassword {
             prefix: prefix.to_string(),
             current_suffix: 0,
@@ -81,17 +84,44 @@ impl GetPassword {
 }
 
 impl Iterator for GetPassword {
-    type Item = char;
+    type Item = (usize, char);
 
-    fn next(&mut self) -> Option<char> {
-        if let Some((last_suffix, ch)) = next_suffix_with_valid_hash(&self.prefix,
-                                                                     self.current_suffix) {
+    fn next(&mut self) -> Option<(usize, char)> {
+        while let Some((last_suffix, position, value)) =
+                  next_suffix_with_valid_hash(&self.prefix, self.current_suffix) {
             self.current_suffix = last_suffix + 1;
-            Some(ch)
+            if let Some(position) = match position {
+                pos @ '0'...'7' => Some(pos as usize),
+                _ => None,
+            } {
+                return Some((position, value));
+            }
+        }
+        None
+    }
+}
+
+pub fn get_password(prefix: &str) -> [char; 8] {
+    let mut password: [Option<char>; 8] = [None; 8];
+    let mut gp = GetPassword::new(prefix);
+
+    // until all positions are filled
+    while !password.iter().all(|position| position.is_some()) {
+        if let Some((position, value)) = gp.next() {
+            if password[position].is_none() {
+                password[position] = Some(value);
+            }
         } else {
-            None
+            panic!("ran out of suffix possibilities!");
         }
     }
+
+    // copy results into output array
+    let mut result = [' '; 8];
+    for i in 0..8 {
+        result[i] = password[i].expect("not all positions contained values");
+    }
+    result
 }
 
 #[cfg(test)]
