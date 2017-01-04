@@ -80,6 +80,57 @@ pub fn sum_valid_sectors(lines: &str) -> usize {
         .sum()
 }
 
+
+fn shift_char(mut ch: char, shift: usize) -> char {
+    use std::ascii::AsciiExt;
+
+    let upper = ch.is_uppercase();
+    ch.make_ascii_lowercase();
+    const ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz";
+    if let Some(index) = ALPHABET.find(ch) {
+        ch = ALPHABET.chars().nth((index + shift) % 26).unwrap();
+    }
+    if upper {
+        ch.make_ascii_uppercase();
+    }
+    ch
+}
+
+/// En/decrypt a string using a shift cypher
+pub fn shift_str(encrypted: &str, shift: usize) -> String {
+    encrypted.chars().map(|ch| shift_char(ch, shift)).collect()
+}
+
+/// Decrypt a room code according to Santa Rules
+///
+/// 1. shift every char by sector number
+/// 2. dashes become spaces
+pub fn decrypt(encrypted: &str) -> Option<String> {
+    if let Some(captures) = ROOM_RE.captures(encrypted) {
+        let shift = captures["sector"].parse::<usize>().expect("Failed to parse sector as usize");
+        let decrypted = shift_str(&captures["name"], shift);
+        Some(decrypted.replace("-", " "))
+    } else {
+        None
+    }
+}
+
+/// Find valid rooms whose decrypted name contains the words "north pole"
+///
+/// Case-insensitive
+pub fn find_np_lines(lines: &str) -> Vec<(String, usize)> {
+    lines.lines()
+        .map(|line| line.trim())
+        .filter(|line| validate(line))
+        .map(|line| {
+            let caps = ROOM_RE.captures(line).unwrap();
+            (decrypt(&line).unwrap(),
+             caps["sector"].parse::<usize>().expect("Failed to parse sector as usize"))
+        })
+        .filter(|&(ref name, _)| name.to_lowercase().contains("north pole"))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,5 +167,14 @@ mod tests {
     fn test_sum_valid_sectors() {
         let lines = get_examples().join("\n");
         assert!(sum_valid_sectors(&lines) == 1514);
+    }
+
+    #[test]
+    fn test_decrypt() {
+        // this doesn't validate, but that doesn't matter:
+        // decryption is orthogonal to validation
+        let encrypted = "qzmt-zixmtkozy-ivhz-343[bleah]";
+        assert!(&decrypt(encrypted).expect("failed to decrypt test string") ==
+                "very encrypted name");
     }
 }
