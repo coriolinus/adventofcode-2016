@@ -91,7 +91,7 @@ impl Iterator for GetPassword {
                   next_suffix_with_valid_hash(&self.prefix, self.current_suffix) {
             self.current_suffix = last_suffix + 1;
             if let Some(position) = match position {
-                pos @ '0'...'7' => Some(pos as usize),
+                pos @ '0'...'7' => Some(pos as usize - '0' as usize),
                 _ => None,
             } {
                 return Some((position, value));
