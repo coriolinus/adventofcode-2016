@@ -68,6 +68,14 @@ pub fn transpose<T: Copy + Default>(input: &Vec<Vec<T>>) -> Vec<Vec<T>> {
 ///
 /// Every input line must have an equal number of characters for this to work right.
 pub fn count_most_frequent(lines: &str) -> String {
+    count_most_frequent_with_reverse(lines, false)
+}
+
+pub fn count_least_frequent(lines: &str) -> String {
+    count_most_frequent_with_reverse(lines, true)
+}
+
+fn count_most_frequent_with_reverse(lines: &str, rev: bool) -> String {
     let input = lines.lines()
         .map(|line| line.trim())
         .filter(|line| !line.is_empty())
@@ -79,9 +87,12 @@ pub fn count_most_frequent(lines: &str) -> String {
     let mut output = String::with_capacity(transposed.len());
 
     for chars in transposed {
-        output.push(
-            Counter::init(chars).most_common().next().expect("At least one row required!").0
-        );
+        let mut mc: Box<DoubleEndedIterator<Item = (char, usize)>> = Box::new(Counter::init(chars)
+            .most_common());
+        if rev {
+            mc = Box::new(mc.rev());
+        }
+        output.push(mc.next().expect("At least one row required!").0);
     }
 
     output
@@ -139,5 +150,10 @@ enarar\n\
     #[test]
     fn test_given_example() {
         assert!(&count_most_frequent(&get_lines_example()) == "easter");
+    }
+
+    #[test]
+    fn test_least_eaxmple() {
+        assert!(&count_least_frequent(&get_lines_example()) == "advent");
     }
 }
