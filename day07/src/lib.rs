@@ -34,7 +34,7 @@ pub enum Day07Err {
 ///
 /// Return the section and whether or not it occurs within brackets.
 ///
-/// Nested or unmatched brackets cause this to return None.
+/// Nested or unmatched brackets cause this to return an error.
 pub fn split_brackets<'a>(input: &'a str) -> Result<Vec<(&'a str, bool)>, Day07Err> {
     // ensure we have the same number of brackets
     if input.chars().filter(|&c| c == '[').count() != input.chars().filter(|&c| c == ']').count() {
@@ -88,4 +88,84 @@ pub fn split_brackets<'a>(input: &'a str) -> Result<Vec<(&'a str, bool)>, Day07E
     result.push((&input[index..], false));
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_examples() -> Vec<String> {
+        vec![
+            "abba[mnop]qrst",
+            "abcd[bddb]xyyx",
+            "aaaa[qwer]tyui",
+            "ioxxoj[asdfgh]zxcvbn",
+        ]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn test_split_brackets_happy() {
+        let expected = vec![
+            vec![
+                ("abba", false),
+                ("mnop", true),
+                ("qrst", false),
+            ],
+            vec![
+                ("abcd", false),
+                ("bddb", true),
+                ("xyyx", false),
+            ],
+            vec![
+                ("aaaa", false),
+                ("qwer", true),
+                ("tyui", false),
+            ],
+            vec![
+                ("ioxxoj", false),
+                ("asdfgh", true),
+                ("zxcvbn", false),
+            ],
+        ];
+
+        for (example, expect) in get_examples().iter().zip(expected) {
+            assert!(split_brackets(&example) == Ok(expect));
+        }
+    }
+
+    #[test]
+    fn test_split_brackets_unmatched() {
+        for case in ["[", "]", "[][", "][]"].iter() {
+            assert!(split_brackets(case) == Err(Day07Err::UnmatchedBrackets));
+        }
+    }
+
+    #[test]
+    fn test_split_brackets_nested() {
+        for case in ["[[]]", "[][[]]", "[[[]]]"].iter() {
+            match split_brackets(case) {
+                Err(Day07Err::NestedBrackets(_, _)) => {}
+                e => {
+                    println!("{:?}", e);
+                    panic!("Wrong error returned");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_split_brackets_reversed() {
+        for case in ["][", "[]][", "[][]][", "][[]"].iter() {
+            match split_brackets(case) {
+                Err(Day07Err::ReversedBrackets(_, _)) => {}
+                e => {
+                    println!("{:?}", e);
+                    panic!("Wrong error returned");
+                }
+            }
+        }
+    }
 }
