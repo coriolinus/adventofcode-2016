@@ -123,6 +123,24 @@ pub fn contains_abba(input: &str) -> bool {
     false
 }
 
+pub fn supports_tls(ipv7: &str) -> bool {
+    if let Ok(brackets) = split_brackets(ipv7) {
+        let mut has_abba = false;
+        for (section, is_hypernet) in brackets {
+            if contains_abba(section) {
+                if is_hypernet {
+                    return false;
+                } else {
+                    has_abba = true;
+                }
+            }
+        }
+        has_abba
+    } else {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,6 +224,20 @@ mod tests {
     fn test_contains_abba() {
         for (case, expect) in get_examples().iter().zip([true, true, false, true].into_iter()) {
             assert!(contains_abba(case) == *expect);
+        }
+        assert!(contains_abba("abba") == true);
+        assert!(contains_abba("abb") == false);
+        assert!(contains_abba("bccb") == true);
+    }
+
+    #[test]
+    fn test_supports_tls() {
+        for (case, expect) in get_examples().iter().zip([true, false, false, true].into_iter()) {
+            println!("Case '{}': expect {} found {}",
+                     case,
+                     expect,
+                     supports_tls(case));
+            assert!(supports_tls(case) == *expect);
         }
     }
 }
