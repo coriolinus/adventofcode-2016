@@ -94,24 +94,13 @@ pub fn contains_abba(input: &str) -> bool {
         return false;
     }
 
-    // we can't just use the Vec::windows(4) implementation, which does precisely what we want,
-    // if only this were a vec instead of a string.
-    // Instead, we have to do something like that ourselves.
-    //
-    // Example: "abracadabra"
-    //           ^   ^- ends = 4. example[0..4] == "abra"
-    //           |----- starts = 0.
-    //
-    let starts = input.char_indices().map(|(i, _)| i);
-    let ends = input.char_indices().map(|(i, _)| i).skip(4);
-
     // to avoid reallocating everything as a vector of chars,
     // we have to look at it as bytes instead. This of course
     // means that we're vulnerable to errors if we encounter some unicode,
     // but we _shouldn't_ encounter that for this problem.
     let bytes = input.as_bytes();
 
-    for (start, _) in starts.zip(ends) {
+    for start in 0..(bytes.len() - 3) {
         if bytes[start] != bytes[start + 1] && // first two don't match
             bytes[start + 1] == bytes[start + 2] && // inner two match
             bytes[start] == bytes[start + 3]
@@ -228,6 +217,7 @@ mod tests {
         assert!(contains_abba("abba") == true);
         assert!(contains_abba("abb") == false);
         assert!(contains_abba("bccb") == true);
+        assert!(contains_abba("aaaa") == false);
     }
 
     #[test]
