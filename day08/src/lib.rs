@@ -94,6 +94,7 @@ impl Default for TinyScreen {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Instruction {
     Rect(usize, usize),
     RotateRow(usize, usize),
@@ -184,6 +185,35 @@ impl Instruction {
                 None
             }
             _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_example_instructions() -> Vec<&'static str> {
+        vec![
+            "rect 3x2",
+            "rotate column x=1 by 1",
+            "rotate row y=0 by 4",
+            "rotate column x=1 by 1",
+        ]
+    }
+
+    #[test]
+    fn test_parse_instructions() {
+        use Instruction::*;
+        let expected = vec![
+            Rect(3, 2),
+            RotateCol(1, 1),
+            RotateRow(0, 4),
+            RotateCol(1, 1),
+        ];
+
+        for (line, expect) in get_example_instructions().iter().zip(expected) {
+            assert!(Instruction::parse(line) == Some(expect));
         }
     }
 }
