@@ -112,6 +112,45 @@ pub fn contains_abba(input: &str) -> bool {
     false
 }
 
+/// Compute a list of all ABAs in the contained string.
+///
+/// Return (a, b)
+pub fn contained_abas(input: &str) -> Vec<(char, char)> {
+    let mut abas = Vec::new();
+    let bytes = input.as_bytes();
+
+    for start in 0..(bytes.len() - 2) {
+        if bytes[start] != bytes[start + 1] && // first two don't match
+            bytes[start] == bytes[start + 2]
+        // outer two match
+        {
+            abas.push((bytes[start] as char, bytes[start + 1] as char));
+        }
+    }
+
+    abas
+}
+
+/// True if any sequence bab appears in input, given the list of (a, b) pairs
+pub fn contains_bab(input: &str, abas: &Vec<(char, char)>) -> bool {
+    abas.iter().any(|&(a, b)| input.contains(&[b, a, b].into_iter().cloned().collect::<String>()))
+}
+
+pub fn supports_ssl(ipv7: &str) -> bool {
+    if let Ok(brackets) = split_brackets(ipv7) {
+        let mut abas = Vec::new();
+        for supernet in brackets.iter().filter(|t| !t.1).map(|&(s, _)| s) {
+            abas.extend(contained_abas(supernet));
+        }
+        for hypernet in brackets.iter().filter(|t| t.1).map(|&(s, _)| s) {
+            if contains_bab(hypernet, &abas) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 pub fn supports_tls(ipv7: &str) -> bool {
     if let Ok(brackets) = split_brackets(ipv7) {
         let mut has_abba = false;
@@ -228,6 +267,23 @@ mod tests {
                      expect,
                      supports_tls(case));
             assert!(supports_tls(case) == *expect);
+        }
+    }
+
+    #[test]
+    fn test_supports_ssl() {
+        let cases = vec![
+            ("aba[bab]xyz", true),
+            ("xyx[xyx]xyx", false),
+            ("aaa[kek]eke", true),
+            ("zazbz[bzb]cdb", true),
+        ];
+        for (case, expect) in cases {
+            println!("Case '{}': expect {} found {}",
+                     case,
+                     expect,
+                     supports_ssl(case));
+            assert!(supports_ssl(case) == expect);
         }
     }
 }
