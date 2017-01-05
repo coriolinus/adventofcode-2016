@@ -63,3 +63,31 @@ pub fn transpose<T: Copy + Default>(input: &Vec<Vec<T>>) -> Vec<Vec<T>> {
 
     output
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_transpose_example() -> Vec<Vec<usize>> {
+        vec![
+            vec![1, 2, 3],
+            vec![4, 5, 6],
+        ]
+    }
+
+    #[test]
+    fn test_transpose_simple() {
+        let expected_output = vec![
+            vec![1, 4],
+            vec![2, 5],
+            vec![3, 6],
+        ];
+
+        assert!(transpose(&get_transpose_example()) == expected_output);
+    }
+
+    #[test]
+    fn test_double_transpose_is_noop() {
+        assert!(transpose(&transpose(&get_transpose_example())) == get_transpose_example());
+    }
+}
