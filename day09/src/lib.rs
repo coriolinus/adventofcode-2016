@@ -44,6 +44,16 @@ enum State {
     Error(&'static str), // error message
 }
 
+impl State {
+    /// Return the error message if this is an error state, or None otherwise
+    pub fn error(&self) -> Option<&'static str> {
+        match *self {
+            State::Error(msg) => Some(msg),
+            _ => None,
+        }
+    }
+}
+
 impl Default for State {
     fn default() -> State {
         State::Normal
@@ -52,37 +62,37 @@ impl Default for State {
 
 // Given an input character and the current state, return the subsequent state
 // and optionally an output character to write.
-fn handle_char(state: State, input: char) -> (State, String) {
+fn handle_char(state: State, input: char) -> (State, Option<String>) {
     use State::*;
     match state {
         Normal => {
             if input != '(' {
-                (Normal, input.to_string())
+                (Normal, Some(input.to_string()))
             } else {
-                (ParsingMarkerLength(String::new()), String::new())
+                (ParsingMarkerLength(String::new()), None)
             }
         }
         ParsingMarkerLength(mut wip) => {
             if input != 'x' {
                 wip.push(input);
-                (ParsingMarkerLength(wip), String::new())
+                (ParsingMarkerLength(wip), None)
             } else {
                 if let Ok(length) = wip.parse::<usize>() {
-                    (ParsingMarkerCount(length, String::new()), String::new())
+                    (ParsingMarkerCount(length, String::new()), None)
                 } else {
-                    (Error("Could not parse marker length"), String::new())
+                    (Error("Could not parse marker length"), Some(input.to_string()))
                 }
             }
         }
         ParsingMarkerCount(length, mut wip) => {
             if input != ')' {
                 wip.push(input);
-                (ParsingMarkerCount(length, wip), String::new())
+                (ParsingMarkerCount(length, wip), None)
             } else {
                 if let Ok(count) = wip.parse::<usize>() {
-                    (ReadingMarked(length, count, String::new()), String::new())
+                    (ReadingMarked(length, count, String::new()), None)
                 } else {
-                    (Error("Could not parse marker count"), String::new())
+                    (Error("Could not parse marker count"), None)
                 }
             }
         }
@@ -90,18 +100,19 @@ fn handle_char(state: State, input: char) -> (State, String) {
             if length > 0 {
                 wip.push(input);
                 length -= 1;
-                (ReadingMarked(length, count, wip), String::new())
+                (ReadingMarked(length, count, wip), None)
             } else {
                 let mut output = String::with_capacity(count * wip.len());
                 for _ in 0..count {
                     output.push_str(&wip);
                 }
-                (Normal, output)
+                (Normal, Some(output))
             }
         }
-        error @ Error(_) => (error, String::new()),
+        error @ Error(_) => (error, Some(input.to_string())),
     }
 }
+
 
 /// Decompress the given input according to Santa Rules
 pub fn decompress(input: &str) -> Option<String> {
@@ -111,15 +122,17 @@ pub fn decompress(input: &str) -> Option<String> {
     for ch in input.chars() {
         let result_tuple = handle_char(state, ch);
         state = result_tuple.0;
-        let intermediate = result_tuple.1;
 
-        if let State::Error(errmsg) = state {
+
+        if let Some(errmsg) = state.error() {
             println!("Error while decompressing: {}", errmsg);
             println!("Buffer: {}", output);
             return None;
         }
 
-        output.push_str(&intermediate);
+        if let Some(intermediate) = result_tuple.1 {
+            output.push_str(&intermediate);
+        }
     }
     Some(output)
 }
