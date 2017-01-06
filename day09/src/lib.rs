@@ -34,6 +34,12 @@
 //!
 //! What is the decompressed length of the file (your puzzle input)? Don't count whitespace.
 
+extern crate num_bigint;
+use num_bigint::BigUint;
+
+extern crate num_traits;
+use num_traits::Zero;
+use num_traits::cast::FromPrimitive;
 
 #[derive(Debug, PartialEq, Eq)]
 enum State {
@@ -208,12 +214,12 @@ fn parse_marker<I>(input: &mut I) -> Option<(usize, usize, usize)>
 ///
 /// The next three characters, 11-13, have both multipliers applied, for a total multiplicand
 /// of 6. Finally, both multipliers expire, so the final character as position 14 is applied once.
-pub fn count_decompressed_v2<I>(input: &mut I) -> Option<usize>
+pub fn count_decompressed_v2<I>(input: &mut I) -> Option<BigUint>
     where I: Iterator<Item = char>
 {
     let mut multipliers: Vec<(usize, usize)> = Vec::new(); // (until, multiplicand)
     let mut multiplicand; // we'll initialize it in the loop, later
-    let mut total = 0;
+    let mut total: BigUint = Zero::zero();
 
     let mut enumerated = input.enumerate();
     while let Some((index, ch)) = enumerated.next() {
@@ -237,8 +243,10 @@ pub fn count_decompressed_v2<I>(input: &mut I) -> Option<usize>
             // disable this assignment for efficiency.
             // multiplicand = 0;
         } else {
-            multiplicand = multipliers.iter().map(|&(_, multiplicand)| multiplicand).product();
-            total += multiplicand;
+            multiplicand = multipliers.iter()
+                .map(|&(_, multiplicand)| multiplicand as u64)
+                .product();
+            total = total + BigUint::from_u64(multiplicand).unwrap();
         }
 
         // println!("{}: '{}' * {} ({:?}) => {}",
@@ -254,6 +262,12 @@ pub fn count_decompressed_v2<I>(input: &mut I) -> Option<usize>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    extern crate num_bigint;
+    use num_bigint::BigUint;
+
+    extern crate num_traits;
+    use num_traits::cast::FromPrimitive;
 
     fn get_examples() -> Vec<&'static str> {
         vec![
@@ -299,7 +313,7 @@ mod tests {
             println!("Decompressing: {}", case);
             let length = count_decompressed_v2(&mut case.chars());
             println!("Case '{}' -> Expect '{}', Found {:?}", case, ex_len, length);
-            assert!(length == Some(ex_len));
+            assert!(length == Some(BigUint::from_u64(ex_len).unwrap()));
         }
     }
 }
