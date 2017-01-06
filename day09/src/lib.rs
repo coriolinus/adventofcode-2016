@@ -158,6 +158,43 @@ pub fn decompress(input: &str) -> Option<String> {
     Some(output)
 }
 
+fn parse_marker<I>(input: &mut I) -> Option<(usize, usize)>
+    where I: Iterator<Item = char>
+{
+    let length = input.by_ref().take_while(|c| *c != 'x').collect::<String>().parse::<usize>();
+    let count = input.by_ref().take_while(|c| *c != ')').collect::<String>().parse::<usize>();
+
+    match (length, count) {
+        (Ok(length), Ok(count)) => Some((length, count)),
+        _ => None,
+    }
+}
+
+pub fn count_decompressed_v2<I>(input: &mut I) -> Option<usize>
+    where I: Iterator<Item = char>
+{
+    let mut multipliers: Vec<(usize, usize)> = Vec::new(); // (until, multiplicand)
+    let mut total = 0;
+
+    let mut enumerated = input.enumerate();
+    while let Some((index, ch)) = enumerated.next() {
+        // first, add all appropriate counts
+        multipliers.retain(|&(until, _)| until <= index);
+        total += multipliers.iter().map(|&(_, multiplicand)| multiplicand).product();
+
+        // if this was an open paren, parse that
+        if ch == '(' {
+            if let Some((length, count)) = parse_marker(&mut enumerated.by_ref()
+                .map(|(_, ch)| ch)) {
+                multipliers.push((index + length, count));
+            } else {
+                return None;
+            }
+        }
+    }
+    Some(total)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,6 +228,21 @@ mod tests {
                      expect,
                      decompressed);
             assert!(decompressed == Some(expect));
+        }
+    }
+
+    #[test]
+    fn test_count_v2() {
+        let expected = vec![
+            ("(3x3)XYZ", 9),
+            ("X(8x2)(3x3)ABCY", 20),
+            ("(27x12)(20x12)(13x14)(7x10)(1x12)A", 241920),
+            ("(25x3)(3x3)ABC(2x3)XY(5x2)PQRSTX(18x9)(3x2)TWO(5x7)SEVEN", 445),
+        ];
+        for (case, ex_len) in expected {
+            let length = count_decompressed_v2(&mut case.chars());
+            println!("Case '{}' -> Expect '{}', Found {:?}", case, ex_len, length);
+            assert!(length == Some(ex_len));
         }
     }
 }
