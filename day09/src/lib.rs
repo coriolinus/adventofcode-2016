@@ -33,3 +33,72 @@
 //!    further.
 //!
 //! What is the decompressed length of the file (your puzzle input)? Don't count whitespace.
+
+
+#[derive(Debug, PartialEq, Eq)]
+enum State {
+    Normal,
+    ParsingMarkerLength(String), // store WIP characters
+    ParsingMarkerCount(usize, String), // store the length, WIP characters
+    ReadingMarked(usize, usize, String), // store length, count of repetitions, WIP chars
+    Error(&'static str), // error message
+}
+
+impl Default for State {
+    fn default() -> State {
+        State::Normal
+    }
+}
+
+// Given an input character and the current state, return the subsequent state
+// and optionally an output character to write.
+fn handle_char(state: State, input: char) -> (State, String) {
+    use State::*;
+    match state {
+        Normal => {
+            if input != '(' {
+                (Normal, input.to_string())
+            } else {
+                (ParsingMarkerLength(String::new()), String::new())
+            }
+        }
+        ParsingMarkerLength(mut wip) => {
+            if input != 'x' {
+                wip.push(input);
+                (ParsingMarkerLength(wip), String::new())
+            } else {
+                if let Ok(length) = wip.parse::<usize>() {
+                    (ParsingMarkerCount(length, String::new()), String::new())
+                } else {
+                    (Error("Could not parse marker length"), String::new())
+                }
+            }
+        }
+        ParsingMarkerCount(length, mut wip) => {
+            if input != ')' {
+                wip.push(input);
+                (ParsingMarkerCount(length, wip), String::new())
+            } else {
+                if let Ok(count) = wip.parse::<usize>() {
+                    (ReadingMarked(length, count, String::new()), String::new())
+                } else {
+                    (Error("Could not parse marker count"), String::new())
+                }
+            }
+        }
+        ReadingMarked(mut length, count, mut wip) => {
+            if length > 0 {
+                wip.push(input);
+                length -= 1;
+                (ReadingMarked(length, count, wip), String::new())
+            } else {
+                let mut output = String::with_capacity(count * wip.len());
+                for _ in 0..count {
+                    output.push_str(&wip);
+                }
+                (Normal, output)
+            }
+        }
+        error @ Error(_) => (error, String::new()),
+    }
+}
