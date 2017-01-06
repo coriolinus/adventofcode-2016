@@ -124,6 +124,13 @@ impl TinyScreen {
             self.pixels[row][(col + by) % self.width] = current_row[col];
         }
     }
+
+    pub fn num_pixels_lit(&self) -> usize {
+        self.pixels
+            .iter()
+            .map(|row| row.iter().filter(|&px| *px).count())
+            .sum()
+    }
 }
 
 impl Default for TinyScreen {
