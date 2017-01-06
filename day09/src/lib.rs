@@ -69,7 +69,9 @@ impl Default for State {
 // Given an input character and the current state, return the subsequent state
 // and optionally an output character to write.
 fn handle_char(state: State, input: char) -> (State, Option<String>) {
-    // println!("handle_char({:?}, {})", state, input);
+    #[cfg(feature="debug_output")]
+    println!("handle_char({:?}, {})", state, input);
+
     use State::*;
     match state {
         Normal => {
@@ -229,19 +231,22 @@ pub fn count_decompressed_v2<I>(input: &mut I) -> Option<BigUint>
         // if this was an open paren, parse that
         if ch == '(' {
             if let Some((index, length, count)) = parse_marker(&mut enumerated.by_ref()) {
-                // println!("Parsed marker as ({}x{}); index {} => until {}",
-                //          length,
-                //          count,
-                //          index,
-                //          (index + length));
+                #[cfg(feature="debug_output")]
+                println!("Parsed marker as ({}x{}); index {} => until {}",
+                         length,
+                         count,
+                         index,
+                         (index + length));
+
                 multipliers.push((index + length, count));
             } else {
                 return None;
             }
             // The following assignment is only ever read if we're emitting debug output,
-            // which we aren't anymore, as the program now works. Therefore, we just
-            // disable this assignment for efficiency.
-            // multiplicand = 0;
+            #[cfg(feature="debug_output")]
+            {
+                multiplicand = 0;
+            }
         } else {
             multiplicand = multipliers.iter()
                 .map(|&(_, multiplicand)| multiplicand as u64)
@@ -249,12 +254,13 @@ pub fn count_decompressed_v2<I>(input: &mut I) -> Option<BigUint>
             total = total + BigUint::from_u64(multiplicand).unwrap();
         }
 
-        // println!("{}: '{}' * {} ({:?}) => {}",
-        //          index,
-        //          ch,
-        //          multiplicand,
-        //          multipliers,
-        //          total);
+        #[cfg(feature="debug_output")]
+        println!("{}: '{}' * {} ({:?}) => {}",
+                 index,
+                 ch,
+                 multiplicand,
+                 multipliers,
+                 total);
     }
     Some(total)
 }
