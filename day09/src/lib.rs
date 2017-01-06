@@ -102,3 +102,61 @@ fn handle_char(state: State, input: char) -> (State, String) {
         error @ Error(_) => (error, String::new()),
     }
 }
+
+/// Decompress the given input according to Santa Rules
+pub fn decompress(input: &str) -> Option<String> {
+    let mut state = State::default();
+    let mut output = String::with_capacity(input.len());
+
+    for ch in input.chars() {
+        let result_tuple = handle_char(state, ch);
+        state = result_tuple.0;
+        let intermediate = result_tuple.1;
+
+        if let State::Error(errmsg) = state {
+            println!("Error while decompressing: {}", errmsg);
+            println!("Buffer: {}", output);
+            return None;
+        }
+
+        output.push_str(&intermediate);
+    }
+    Some(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_examples() -> Vec<&'static str> {
+        vec![
+            "ADVENT",
+            "A(1x5)BC",
+            "(3x3)XYZ",
+            "A(2x2)BCD(2x2)EFG",
+            "(6x1)(1x3)A",
+            "X(8x2)(3x3)ABCY ",
+        ]
+    }
+
+    #[test]
+    fn test_decompress() {
+        let expected = vec![
+            "ADVENT",
+            "ABBBBBC",
+            "XYZXYZXYZ",
+            "ABCBCDEFEFG",
+            "(1x3)A",
+            "X(3x3)ABC(3x3)ABCY",
+        ];
+
+        for (case, expect) in get_examples().iter().zip(expected.iter().map(|s| s.to_string())) {
+            let decompressed = decompress(case);
+            println!("Case '{}' -> Expect '{}', Found {:?}",
+                     case,
+                     expect,
+                     decompressed);
+            assert!(decompressed == Some(expect));
+        }
+    }
+}
