@@ -89,10 +89,140 @@ impl TinyScreen {
     pub fn get_height(&self) -> usize {
         self.height
     }
+
+    pub fn apply(&mut self, instruction: Instruction) {
+        match instruction {
+            Instruction::Rect(width, height) => self.rect(width, height),
+            Instruction::RotateCol(col, by) => self.rotate_col(col, by),
+            Instruction::RotateRow(row, by) => self.rotate_row(row, by),
+        }
+    }
+
+    pub fn rect(&mut self, width: usize, height: usize) {
+        for row in 0..height {
+            for col in 0..width {
+                self.pixels[row][col] = true;
+            }
+        }
+    }
+
+    pub fn rotate_col(&mut self, col: usize, by: usize) {
+        // first copy the current column, then write it back
+        let mut current_column = Vec::with_capacity(self.height);
+        for row in 0..self.height {
+            current_column.push(self.pixels[row][col]);
+        }
+        for row in 0..self.height {
+            self.pixels[(row + by) % self.height][col] = current_column[row];
+        }
+    }
+
+    pub fn rotate_row(&mut self, row: usize, by: usize) {
+        // first copy the current row, then write it back
+        let current_row = self.pixels[row].clone();
+        for col in 0..self.width {
+            self.pixels[row][(col + by) % self.width] = current_row[col];
+        }
+    }
 }
 
 impl Default for TinyScreen {
     fn default() -> TinyScreen {
         TinyScreen::new(50, 6)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::instruction::Instruction;
+
+    pub fn get_example_instructions() -> Vec<&'static str> {
+        vec![
+                "rect 3x2",
+                "rotate column x=1 by 1",
+                "rotate row y=0 by 4",
+                "rotate column x=1 by 1",
+            ]
+    }
+
+    #[test]
+    /// rect 3x2 creates a small rectangle in the top-left corner:
+    ///
+    /// ```notrust
+    /// ###....
+    /// ###....
+    /// .......
+    /// ```
+    ///
+    /// rotate column x=1 by 1 rotates the second column down by one pixel:
+    ///
+    /// ```notrust
+    /// #.#....
+    /// ###....
+    /// .#.....
+    /// ```
+    ///
+    /// rotate row y=0 by 4 rotates the top row right by four pixels:
+    ///
+    /// ```notrust
+    /// ....#.#
+    /// ###....
+    /// .#.....
+    /// ```
+    /// rotate column x=1 by 1 again rotates the second column down by one pixel, causing the
+    /// bottom pixel to wrap back to the top:
+    ///
+    /// ```notrust
+    /// .#..#.#
+    /// #.#....
+    /// .#.....
+    fn test_example() {
+        let expected = vec![
+            TinyScreen {
+                width: 7,
+                height: 3,
+                pixels: vec![
+                    vec![true, true, true, false, false, false, false],
+                    vec![true, true, true, false, false, false, false],
+                    vec![false, false, false, false, false, false, false],
+                ],
+            },
+            TinyScreen {
+                width: 7,
+                height: 3,
+                pixels: vec![
+                    vec![true, false, true, false, false, false, false],
+                    vec![true, true, true, false, false, false, false],
+                    vec![false, true, false, false, false, false, false],
+                ],
+            },
+            TinyScreen {
+                width: 7,
+                height: 3,
+                pixels: vec![
+                    vec![false, false, false, false, true, false, true],
+                    vec![true, true, true, false, false, false, false],
+                    vec![false, true, false, false, false, false, false],
+                ],
+            },
+            TinyScreen {
+                width: 7,
+                height: 3,
+                pixels: vec![
+                    vec![false, true, false, false, true, false, true],
+                    vec![true, false, true, false, false, false, false],
+                    vec![false, true, false, false, false, false, false],
+                ],
+            },
+                            ];
+        let mut ts = TinyScreen::new(7, 3);
+        for (instruction, expect) in get_example_instructions()
+            .iter()
+            .map(|i| Instruction::parse(i).unwrap())
+            .zip(expected) {
+            ts.apply(instruction);
+            assert!(ts == expect);
+        }
     }
 }

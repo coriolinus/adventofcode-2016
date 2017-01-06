@@ -1,5 +1,5 @@
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Instruction {
     Rect(usize, usize),
     RotateRow(usize, usize),
@@ -97,15 +97,7 @@ impl Instruction {
 #[cfg(test)]
 mod tests {
     use instruction::*;
-
-    fn get_example_instructions() -> Vec<&'static str> {
-        vec![
-            "rect 3x2",
-            "rotate column x=1 by 1",
-            "rotate row y=0 by 4",
-            "rotate column x=1 by 1",
-        ]
-    }
+    use super::super::tests::get_example_instructions;
 
     #[test]
     fn test_parse_instructions() {
