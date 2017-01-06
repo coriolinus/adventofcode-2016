@@ -12,3 +12,5 @@ name = "day10bin"
 path = "src/main.rs"
 
 [dependencies]
+nom = "^2.0"
+util = { path = "../util" }
