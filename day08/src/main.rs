@@ -16,6 +16,7 @@ fn main() {
             ts.apply(instruction);
         }
         println!("Lit pixels: {}", ts.num_pixels_lit());
+        println!("{}", ts);
     } else {
         println!("Error parsing instructions")
     }

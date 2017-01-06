@@ -139,6 +139,18 @@ impl Default for TinyScreen {
     }
 }
 
+impl std::fmt::Display for TinyScreen {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        for line in self.pixels.iter() {
+            writeln!(f,
+                     "{}",
+                     line.iter().map(|px| if *px { '#' } else { '.' }).collect::<String>())?;
+        }
+        Ok(())
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
