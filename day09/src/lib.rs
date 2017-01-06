@@ -63,6 +63,7 @@ impl Default for State {
 // Given an input character and the current state, return the subsequent state
 // and optionally an output character to write.
 fn handle_char(state: State, input: char) -> (State, Option<String>) {
+    // println!("handle_char({:?}, {})", state, input);
     use State::*;
     match state {
         Normal => {
@@ -106,7 +107,13 @@ fn handle_char(state: State, input: char) -> (State, Option<String>) {
                 for _ in 0..count {
                     output.push_str(&wip);
                 }
-                (Normal, Some(output))
+                // of course, we haven't yet dealt with the input char at all yet
+                // simplest solution is to handle it recursively
+                let (new_state, additional_output) = handle_char(Normal, input);
+                if let Some(additional) = additional_output {
+                    output.push_str(&additional);
+                }
+                (new_state, Some(output))
             }
         }
         error @ Error(_) => (error, Some(input.to_string())),
@@ -134,6 +141,20 @@ pub fn decompress(input: &str) -> Option<String> {
             output.push_str(&intermediate);
         }
     }
+    // we may not have actually emitted any output, if the last character read was one
+    // marked
+    match state {
+        // if we ended just as the marking ended, we still need to write our output
+        State::ReadingMarked(length, count, ref marked) if length == 0 => {
+            for _ in 0..count {
+                output.push_str(marked);
+            }
+        }
+        // normal state is also fine
+        State::Normal => {}
+        // anything else is probably an error
+        _ => return None,
+    }
     Some(output)
 }
 
@@ -148,7 +169,7 @@ mod tests {
             "(3x3)XYZ",
             "A(2x2)BCD(2x2)EFG",
             "(6x1)(1x3)A",
-            "X(8x2)(3x3)ABCY ",
+            "X(8x2)(3x3)ABCY",
         ]
     }
 
