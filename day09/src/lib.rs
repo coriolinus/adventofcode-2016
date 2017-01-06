@@ -158,39 +158,95 @@ pub fn decompress(input: &str) -> Option<String> {
     Some(output)
 }
 
-fn parse_marker<I>(input: &mut I) -> Option<(usize, usize)>
-    where I: Iterator<Item = char>
+fn parse_marker<I>(input: &mut I) -> Option<(usize, usize, usize)>
+    where I: Iterator<Item = (usize, char)>
 {
-    let length = input.by_ref().take_while(|c| *c != 'x').collect::<String>().parse::<usize>();
-    let count = input.by_ref().take_while(|c| *c != ')').collect::<String>().parse::<usize>();
+    let length = input.by_ref()
+        .map(|(_, c)| c)
+        .take_while(|c| *c != 'x')
+        .collect::<String>()
+        .parse::<usize>();
+    let (index, count): (Vec<usize>, String) =
+        input.by_ref().take_while(|&(_, c)| c != ')').unzip();
+    // index is last updated on the character preceding the close paren.
+    // What we want to return is the index of the close paren
+    // Therefore, simply add one.
+    let index = *index.last().unwrap() + 1;
+    let count = count.parse::<usize>();
 
     match (length, count) {
-        (Ok(length), Ok(count)) => Some((length, count)),
+        (Ok(length), Ok(count)) => Some((index, length, count)),
         _ => None,
     }
 }
 
+/// Return the length of the decompressed data, or None if there's a parse error.
+///
+/// It is a parse error for a repeated section to end within a marker.
+///
+/// Computes in a single pass over the data. Let's work through an example,
+/// to show how that works:
+///
+/// ```notrust
+/// Input:  X(8x2)(3x3)ABCY
+///                   11111
+/// Index:  012345678901234
+///                    ^^^- Marked by the 3x3 marker immediately preceding
+///               ^^^^^^^^- Marked by the 8x2 marker
+/// M'cand: 1----------6661
+/// ```
+///
+/// So how does it work? The iterator simply keeps track of the marked sections as it proceeds.
+/// The initial character, `X`, has a multiplicand of 1; it's not part of any marked section.
+/// The next character, `(`, triggers a `parse_marker` call; those characters are not counted.
+/// It returns the tuple `(8, 2)`, corresponding to its settings; at this time, the current index
+/// is `6`; this is used to compute that a 2x multiplier should be applied through position `13`.
+///
+/// The next character is also `(`, which triggers the same sort of computation. The
+/// `parse_marker` call consumed through character 10, so the current index is 11. This is
+/// used to compute that a 3x multiplier should be applied through position `13`.
+///
+/// The next three characters, 11-13, have both multipliers applied, for a total multiplicand
+/// of 6. Finally, both multipliers expire, so the final character as position 14 is applied once.
 pub fn count_decompressed_v2<I>(input: &mut I) -> Option<usize>
     where I: Iterator<Item = char>
 {
     let mut multipliers: Vec<(usize, usize)> = Vec::new(); // (until, multiplicand)
+    let mut multiplicand; // we'll initialize it in the loop, later
     let mut total = 0;
 
     let mut enumerated = input.enumerate();
     while let Some((index, ch)) = enumerated.next() {
         // first, add all appropriate counts
-        multipliers.retain(|&(until, _)| until <= index);
-        total += multipliers.iter().map(|&(_, multiplicand)| multiplicand).product();
+        multipliers.retain(|&(until, _)| index <= until);
 
         // if this was an open paren, parse that
         if ch == '(' {
-            if let Some((length, count)) = parse_marker(&mut enumerated.by_ref()
-                .map(|(_, ch)| ch)) {
+            if let Some((index, length, count)) = parse_marker(&mut enumerated.by_ref()) {
+                // println!("Parsed marker as ({}x{}); index {} => until {}",
+                //          length,
+                //          count,
+                //          index,
+                //          (index + length));
                 multipliers.push((index + length, count));
             } else {
                 return None;
             }
+            // The following assignment is only ever read if we're emitting debug output,
+            // which we aren't anymore, as the program now works. Therefore, we just
+            // disable this assignment for efficiency.
+            // multiplicand = 0;
+        } else {
+            multiplicand = multipliers.iter().map(|&(_, multiplicand)| multiplicand).product();
+            total += multiplicand;
         }
+
+        // println!("{}: '{}' * {} ({:?}) => {}",
+        //          index,
+        //          ch,
+        //          multiplicand,
+        //          multipliers,
+        //          total);
     }
     Some(total)
 }
@@ -240,6 +296,7 @@ mod tests {
             ("(25x3)(3x3)ABC(2x3)XY(5x2)PQRSTX(18x9)(3x2)TWO(5x7)SEVEN", 445),
         ];
         for (case, ex_len) in expected {
+            println!("Decompressing: {}", case);
             let length = count_decompressed_v2(&mut case.chars());
             println!("Case '{}' -> Expect '{}', Found {:?}", case, ex_len, length);
             assert!(length == Some(ex_len));
