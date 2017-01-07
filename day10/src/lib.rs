@@ -42,6 +42,9 @@
 //!
 //! Based on your instructions, what is the number of the bot that is responsible for
 //! comparing value-61 microchips with value-17 microchips?
+
+use std::collections::{HashMap, HashSet, VecDeque};
+
 #[macro_use]
 extern crate nom;
 
@@ -53,6 +56,8 @@ pub struct Bot {
     values: (Option<usize>, Option<usize>),
     cache: Option<(usize, usize)>,
 }
+
+type BotInsertErr = String;
 
 impl Bot {
     pub fn new(id: usize) -> Bot {
@@ -69,11 +74,16 @@ impl Bot {
     }
 
     /// Add a result to this bot, or error if it's full
-    pub fn add_value(&mut self, value: usize) -> Result<(), ()> {
+    pub fn add_value(&mut self, value: usize) -> Result<(), BotInsertErr> {
         self.values = match self.values {
             (None, _) => (Some(value), None),
             (Some(v1), None) => (Some(v1), Some(value)),
-            _ => return Err(()),
+            _ => {
+
+                return Err(format!("Can't insert value {} into bot {}; it's full",
+                                   value,
+                                   self.id));
+            }
         };
 
         if self.is_full() {
@@ -99,29 +109,105 @@ impl Bot {
     }
 }
 
-/// A Receiver is a Bot or an Output: it can receive items
-pub enum ReceiverType {
-    Bot,
-    Output,
-}
-
-pub struct Receiver {
-    rtype: ReceiverType,
-    id: usize,
+/// A Receiver is a Bot or an Output: it can receive items.
+///
+/// In either case, it contains the ID of the destination item
+pub enum Receiver {
+    Bot(usize),
+    Output(usize),
 }
 
 pub enum Instruction {
-    Get { value: usize, bot: Bot },
+    Get { bot_id: usize, value: usize },
     Transfer {
-        origin: Bot,
+        bot_id: usize,
         low_dest: Receiver,
         high_dest: Receiver,
     },
 }
 
+impl Instruction {
+    pub fn get(bot_id: usize, value: usize) -> Instruction {
+        Instruction::Get {
+            bot_id: bot_id,
+            value: value,
+        }
+    }
 
-type BotMap = std::collections::HashMap<usize, Bot>;
+    pub fn transfer(bot_id: usize, low_dest: Receiver, high_dest: Receiver) -> Instruction {
+        Instruction::Transfer {
+            bot_id: bot_id,
+            low_dest: low_dest,
+            high_dest: high_dest,
+        }
+    }
+}
 
-pub fn process(instructions: Vec<Instruction>) -> Result<BotMap, ()> {
-    unimplemented!()
+
+type Bots = HashMap<usize, Bot>;
+type Outputs = HashMap<usize, HashSet<usize>>;
+
+/// Process a list of instructions.
+///
+/// Be careful--there's no guard currently in place against an incomplete list of instructions
+/// leading to an infinite loop.
+pub fn process(instructions: Vec<Instruction>) -> Result<Bots, BotInsertErr> {
+    let mut bots = Bots::new();
+    let mut outputs = Outputs::new();
+
+    // convert to double-ended queue
+    let mut instructions: VecDeque<Instruction> = instructions.into_iter().collect();
+
+    while !instructions.is_empty() {
+        match instructions.pop_front().unwrap() {
+            Instruction::Get { value, bot_id } => {
+                bots.entry(bot_id).or_insert(Bot::new(bot_id)).add_value(value)?
+            }
+            Instruction::Transfer { bot_id, low_dest, high_dest } => {
+                // we can't modify bots in-place in the next section, so we use these
+                // variables to track any necessary adjustments to the bots
+                let mut insert_bot_value_low = None;
+                let mut insert_bot_value_high = None;
+
+                if let Some(bot) = bots.get(&bot_id) {
+                    if bot.is_full() {
+                        match low_dest {
+                            Receiver::Bot(id) => {
+                                insert_bot_value_low = Some((id, bot.low().unwrap()));
+                            }
+                            Receiver::Output(id) => {
+                                outputs.entry(id)
+                                    .or_insert(HashSet::new())
+                                    .insert(bot.low().unwrap());
+                            }
+                        }
+                        match high_dest {
+                            Receiver::Bot(id) => {
+                                insert_bot_value_high = Some((id, bot.high().unwrap()));
+                            }
+                            Receiver::Output(id) => {
+                                outputs.entry(id)
+                                    .or_insert(HashSet::new())
+                                    .insert(bot.high().unwrap());
+                            }
+                        }
+                    } else {
+                        instructions.push_back(Instruction::transfer(bot_id, low_dest, high_dest));
+                    }
+                } else {
+                    instructions.push_back(Instruction::transfer(bot_id, low_dest, high_dest));
+                }
+
+                // if everything worked, propagate our values to bots
+                if let Some((id, value)) = insert_bot_value_low {
+                    bots.entry(id).or_insert(Bot::new(id)).add_value(value)?;
+                }
+                if let Some((id, value)) = insert_bot_value_high {
+                    bots.entry(id).or_insert(Bot::new(id)).add_value(value)?;
+                }
+            }
+        }
+    }
+
+    Ok(bots)
 }
