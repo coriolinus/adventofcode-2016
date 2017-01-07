@@ -211,3 +211,18 @@ pub fn process(instructions: Vec<Instruction>) -> Result<Bots, BotInsertErr> {
 
     Ok(bots)
 }
+
+/// Return the bot ID which handles the specified values
+pub fn find_bot_handling(bots: &Bots, mut v1: usize, mut v2: usize) -> Option<usize> {
+    // ensure v1 <= v2 for simpler comparisons
+    if v2 > v1 {
+        std::mem::swap(&mut v1, &mut v2);
+    }
+
+    for bot in bots.values() {
+        if bot.cache == Some((v1, v2)) {
+            return Some(bot.id);
+        }
+    }
+    None
+}
