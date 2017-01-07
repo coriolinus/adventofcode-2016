@@ -45,7 +45,8 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-pub mod parser;
+mod parser;
+pub use parser::parse_Inst as parse_inst;
 
 #[derive(Debug)]
 pub struct Output(usize);
@@ -233,7 +234,6 @@ pub fn find_bot_handling(bots: &Bots, v1: usize, v2: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::parser::parse_Inst;
 
     use std::collections::HashSet;
 
@@ -289,7 +289,7 @@ mod tests {
             .iter()
             .zip(get_example_instructions_parsed()) {
             println!("Parsing '{}'; expecting {:?}", raw, parsed);
-            let got = parse_Inst(raw);
+            let got = parse_inst(raw);
             println!("Got {:?}", got);
             assert_eq!(got, Ok(parsed));
         }
