@@ -24,3 +24,25 @@
 //! ```
 
 use super::{Instruction, Receiver};
+
+grammar;
+
+// from the tutorial
+Num: usize = <s:r"[0-9]+"> => s.parse::<usize>().unwrap();
+
+// parse get expressions
+Get: Instruction = "value " <value:Num> " goes to bot " <bot_id:Num> => Instruction::get(bot_id, value);
+
+// parse transfer expressions
+Rcvr: Receiver = {
+    "bot " <n:Num> => Receiver::Bot(n),
+    "output " <n:Num> => Receiver::Output(n),
+};
+
+Xfer: Instruction = "bot " <origin:Num> " gives low to " <low:Rcvr> " and high to " <high:Rcvr> =>
+    Instruction::transfer(origin, low, high);
+
+pub Inst: Instruction = {
+    <get:Get> => get,
+    <xfr:Xfer> => xfr,
+};
