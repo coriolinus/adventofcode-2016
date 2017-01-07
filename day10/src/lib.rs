@@ -42,6 +42,86 @@
 //!
 //! Based on your instructions, what is the number of the bot that is responsible for
 //! comparing value-61 microchips with value-17 microchips?
-
 #[macro_use]
 extern crate nom;
+
+pub mod parser;
+
+pub struct Output(usize);
+pub struct Bot {
+    pub id: usize,
+    values: (Option<usize>, Option<usize>),
+    cache: Option<(usize, usize)>,
+}
+
+impl Bot {
+    pub fn new(id: usize) -> Bot {
+        Bot {
+            id: id,
+            values: (None, None),
+            cache: None,
+        }
+    }
+
+    /// True if bot has two values
+    pub fn is_full(&self) -> bool {
+        self.values.0.is_some() && self.values.1.is_some()
+    }
+
+    /// Add a result to this bot, or error if it's full
+    pub fn add_value(&mut self, value: usize) -> Result<(), ()> {
+        self.values = match self.values {
+            (None, _) => (Some(value), None),
+            (Some(v1), None) => (Some(v1), Some(value)),
+            _ => return Err(()),
+        };
+
+        if self.is_full() {
+            let v1 = self.values.0.unwrap();
+            let v2 = self.values.1.unwrap();
+
+            if v1 < v2 {
+                self.cache = Some((v1, v2));
+            } else {
+                self.cache = Some((v2, v1));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn low(&self) -> Option<usize> {
+        self.cache.map(|(l, _)| l)
+    }
+
+    pub fn high(&self) -> Option<usize> {
+        self.cache.map(|(_, h)| h)
+    }
+}
+
+/// A Receiver is a Bot or an Output: it can receive items
+pub enum ReceiverType {
+    Bot,
+    Output,
+}
+
+pub struct Receiver {
+    rtype: ReceiverType,
+    id: usize,
+}
+
+pub enum Instruction {
+    Get { value: usize, bot: Bot },
+    Transfer {
+        origin: Bot,
+        low_dest: Receiver,
+        high_dest: Receiver,
+    },
+}
+
+
+type BotMap = std::collections::HashMap<usize, Bot>;
+
+pub fn process(instructions: Vec<Instruction>) -> Result<BotMap, ()> {
+    unimplemented!()
+}
