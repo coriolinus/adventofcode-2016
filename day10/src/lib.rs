@@ -111,11 +111,13 @@ impl Bot {
 /// A Receiver is a Bot or an Output: it can receive items.
 ///
 /// In either case, it contains the ID of the destination item
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Receiver {
     Bot(usize),
     Output(usize),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Instruction {
     Get { bot_id: usize, value: usize },
     Transfer {
@@ -231,10 +233,22 @@ pub fn find_bot_handling(bots: &Bots, v1: usize, v2: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::parser::parse_Inst;
 
     use std::collections::HashSet;
 
-    fn get_example_instructions() -> Vec<Instruction> {
+    fn get_example_instructions_unparsed() -> Vec<&'static str> {
+        vec![
+            "value 5 goes to bot 2",
+            "bot 2 gives low to bot 1 and high to bot 0",
+            "value 3 goes to bot 1",
+            "bot 1 gives low to output 1 and high to bot 0",
+            "bot 0 gives low to output 2 and high to output 0",
+            "value 2 goes to bot 2",
+        ]
+    }
+
+    fn get_example_instructions_parsed() -> Vec<Instruction> {
         use Receiver::*;
         vec![
             Instruction::get(2, 5),
@@ -253,7 +267,7 @@ mod tests {
         expected_outputs.entry(1).or_insert(HashSet::new()).insert(2);
         expected_outputs.entry(2).or_insert(HashSet::new()).insert(3);
 
-        match process(get_example_instructions()) {
+        match process(get_example_instructions_parsed()) {
             Err(errmsg) => panic!(errmsg),
             Ok((bots, outputs)) => {
                 println!("Bots:");
@@ -266,6 +280,18 @@ mod tests {
                 println!("Bot handling 5 and 2: {:?}", find_bot_handling(&bots, 5, 2));
                 assert!(find_bot_handling(&bots, 5, 2) == Some(2));
             }
+        }
+    }
+
+    #[test]
+    fn test_parse() {
+        for (raw, parsed) in get_example_instructions_unparsed()
+            .iter()
+            .zip(get_example_instructions_parsed()) {
+            println!("Parsing '{}'; expecting {:?}", raw, parsed);
+            let got = parse_Inst(raw);
+            println!("Got {:?}", got);
+            assert_eq!(got, Ok(parsed));
         }
     }
 }
