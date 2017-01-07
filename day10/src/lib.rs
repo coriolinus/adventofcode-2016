@@ -45,9 +45,6 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-#[macro_use]
-extern crate nom;
-
 pub mod parser;
 
 #[derive(Debug)]

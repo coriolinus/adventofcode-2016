@@ -1,0 +1,26 @@
+//! Parse strings of the following form:
+//!
+//! ```notrust
+//! value 5 goes to bot 2
+//! bot 2 gives low to bot 1 and high to bot 0
+//! value 3 goes to bot 1
+//! bot 1 gives low to output 1 and high to bot 0
+//! bot 0 gives low to output 2 and high to output 0
+//! value 2 goes to bot 2
+//! ```
+//!
+//! These are parsed into the following Instructions, in turn:
+//!
+//! ```
+//! use Receiver::*;
+//! vec![
+//!     Instruction::get(2, 5),
+//!     Instruction::transfer(2,Bot(1), Bot(0)),
+//!     Instruction::get(1, 3),
+//!     Instruction::transfer(1, Output(1), Bot(0)),
+//!     Instruction::transfer(0, Output(2), Output(0)),
+//!     Instruction::get(2, 2),
+//! ]
+//! ```
+
+use super::{Instruction, Receiver};
