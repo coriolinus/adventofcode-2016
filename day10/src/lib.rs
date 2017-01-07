@@ -50,7 +50,9 @@ extern crate nom;
 
 pub mod parser;
 
+#[derive(Debug)]
 pub struct Output(usize);
+#[derive(Debug)]
 pub struct Bot {
     pub id: usize,
     values: (Option<usize>, Option<usize>),
@@ -144,14 +146,14 @@ impl Instruction {
 }
 
 
-type Bots = HashMap<usize, Bot>;
-type Outputs = HashMap<usize, HashSet<usize>>;
+pub type Bots = HashMap<usize, Bot>;
+pub type Outputs = HashMap<usize, HashSet<usize>>;
 
 /// Process a list of instructions.
 ///
 /// Be careful--there's no guard currently in place against an incomplete list of instructions
 /// leading to an infinite loop.
-pub fn process(instructions: Vec<Instruction>) -> Result<Bots, BotInsertErr> {
+pub fn process(instructions: Vec<Instruction>) -> Result<(Bots, Outputs), BotInsertErr> {
     let mut bots = Bots::new();
     let mut outputs = Outputs::new();
 
@@ -209,20 +211,64 @@ pub fn process(instructions: Vec<Instruction>) -> Result<Bots, BotInsertErr> {
         }
     }
 
-    Ok(bots)
+    Ok((bots, outputs))
 }
 
 /// Return the bot ID which handles the specified values
-pub fn find_bot_handling(bots: &Bots, mut v1: usize, mut v2: usize) -> Option<usize> {
+pub fn find_bot_handling(bots: &Bots, v1: usize, v2: usize) -> Option<usize> {
     // ensure v1 <= v2 for simpler comparisons
-    if v2 > v1 {
-        std::mem::swap(&mut v1, &mut v2);
-    }
+    let search_cache = if v1 < v2 {
+        Some((v1, v2))
+    } else {
+        Some((v2, v1))
+    };
 
     for bot in bots.values() {
-        if bot.cache == Some((v1, v2)) {
+        if bot.cache == search_cache {
             return Some(bot.id);
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::collections::HashSet;
+
+    fn get_example_instructions() -> Vec<Instruction> {
+        use Receiver::*;
+        vec![
+            Instruction::get(2, 5),
+            Instruction::transfer(2,Bot(1), Bot(0)),
+            Instruction::get(1, 3),
+            Instruction::transfer(1, Output(1), Bot(0)),
+            Instruction::transfer(0, Output(2), Output(0)),
+            Instruction::get(2, 2),
+        ]
+    }
+
+    #[test]
+    fn test_expected() {
+        let mut expected_outputs = Outputs::new();
+        expected_outputs.entry(0).or_insert(HashSet::new()).insert(5);
+        expected_outputs.entry(1).or_insert(HashSet::new()).insert(2);
+        expected_outputs.entry(2).or_insert(HashSet::new()).insert(3);
+
+        match process(get_example_instructions()) {
+            Err(errmsg) => panic!(errmsg),
+            Ok((bots, outputs)) => {
+                println!("Bots:");
+                for bot in bots.values() {
+                    println!("  {:?}", bot);
+                }
+                println!("Outputs: {:?}", outputs);
+
+                assert!(outputs == expected_outputs);
+                println!("Bot handling 5 and 2: {:?}", find_bot_handling(&bots, 5, 2));
+                assert!(find_bot_handling(&bots, 5, 2) == Some(2));
+            }
+        }
+    }
 }
