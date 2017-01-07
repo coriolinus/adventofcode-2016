@@ -231,6 +231,10 @@ pub fn find_bot_handling(bots: &Bots, v1: usize, v2: usize) -> Option<usize> {
     None
 }
 
+pub fn parse_lines(lines: &str) -> Option<Vec<Instruction>> {
+    lines.lines().map(|line| parse_inst(line.trim()).ok()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
