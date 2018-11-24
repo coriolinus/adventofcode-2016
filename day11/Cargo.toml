@@ -12,3 +12,4 @@ name = "day11bin"
 path = "src/main.rs"
 
 [dependencies]
+itertools = "0.7.11"
