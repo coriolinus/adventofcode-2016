@@ -19,8 +19,15 @@
 //! R5, L5, R5, R3 leaves you 12 blocks away.
 //! How many blocks away is Easter Bunny HQ?
 
-use std::{collections::HashSet, path::Path};
-use aoclib::{parse, CommaSep, geometry::{Direction, Point, line_segment::LineSegment}};
+use aoclib::{
+    geometry::{
+        line::{self, Line},
+        line_segment::LineSegment,
+        Direction, Point,
+    },
+    parse, CommaSep,
+};
+use std::path::Path;
 
 #[derive(Clone, Copy, Debug, parse_display::Display, parse_display::FromStr)]
 enum Turn {
@@ -32,7 +39,7 @@ enum Turn {
 
 #[derive(Clone, Copy, Debug, parse_display::Display, parse_display::FromStr)]
 #[display("{turn}{distance}")]
-#[from_str(regex=r" ?(?P<turn>[LR])(?P<distance>\d+)")]
+#[from_str(regex = r" ?(?P<turn>[LR])(?P<distance>\d+)")]
 struct Instruction {
     turn: Turn,
     distance: i32,
@@ -60,7 +67,6 @@ impl Default for Position {
     }
 }
 
-
 impl Position {
     #[cfg(test)]
     fn new(facing: Direction, location: Point) -> Position {
@@ -69,12 +75,17 @@ impl Position {
 
     fn follow_instruction(&mut self, instruction: Instruction) {
         match instruction.turn {
-            Turn::Left  => {
-                self.facing.turn_left();
+            Turn::Left => {
+                self.facing = self.facing.turn_left();
             }
-            Turn::Right => {self.facing.turn_right();},
+            Turn::Right => {
+                self.facing = self.facing.turn_right();
+            }
         }
-        self.location += LineSegment{direction: self.facing, distance: instruction.distance};
+        self.location += LineSegment {
+            direction: self.facing,
+            distance: instruction.distance,
+        };
     }
 
     fn follow(&mut self, instructions: &[Instruction]) {
@@ -83,54 +94,63 @@ impl Position {
         }
     }
 
-    fn step_instruction(&mut self, instruction: Instruction) -> impl '_ + Iterator<Item=Point> {
-        match instruction.turn {
-            Turn::Left => self.facing.turn_left(),
-            Turn::Right => self.facing.turn_right(),
-        };
-
-        (0..instruction.distance).map(move |distance| {self.location += LineSegment {direction: self.facing, distance: 1}; self.location})
-    }
-
     fn follow_until_duplicate(&mut self, instructions: &[Instruction]) -> Option<Point> {
-        let mut visited = HashSet::new();
-
-        // add current location before moving
-        visited.insert(self.location);
+        let mut history = Vec::with_capacity(instructions.len());
+        let mut prev_point = self.location;
 
         for instruction in instructions {
-            for step in self.step_instruction(*instruction) {
-                if !visited.insert(step) {
-                    return Some(step);
+            self.follow_instruction(*instruction);
+            let trace = Line::new(prev_point, self.location);
+
+            // O(n**2) still isn't great, but at least we're doing things line-by-line
+            // instead of point-by-point.
+
+            for prev_line in &history {
+                if let Some(intersect) = line::intersect(*prev_line, trace) {
+                    if intersect != prev_point {
+                        return Some(intersect);
+                    }
                 }
             }
+
+            prev_point = self.location;
+            history.push(trace);
         }
         None
     }
 }
 
 pub fn part1(path: &Path) -> Result<(), Error> {
-    let instructions = parse::<CommaSep<Instruction>>(path)?.flatten().collect::<Vec<_>>();
+    let instructions = parse::<CommaSep<Instruction>>(path)?
+        .flatten()
+        .collect::<Vec<_>>();
     let mut position = Position::default();
     position.follow(&instructions);
-    println!("coords of hq: {:#?}", position.location);
     println!("hq manhattan: {}", position.location.manhattan());
     Ok(())
 }
 
 pub fn part2(path: &Path) -> Result<(), Error> {
-    let instructions = parse::<CommaSep<Instruction>>(path)?.flatten().collect::<Vec<_>>();
+    let instructions = parse::<CommaSep<Instruction>>(path)?
+        .flatten()
+        .collect::<Vec<_>>();
     let mut position = Position::default();
-    position.follow(&instructions);
-    println!("coords of hq: {:#?}", position.location);
-    println!("hq manhattan: {}", position.location.manhattan());
-    unimplemented!()
+    let intersection = position
+        .follow_until_duplicate(&instructions)
+        .ok_or(Error::NoIntersection)?;
+    println!(
+        "dist of first duplicate point: {}",
+        intersection.manhattan()
+    );
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error("no intersection found")]
+    NoIntersection,
 }
 
 #[cfg(test)]
@@ -138,8 +158,8 @@ mod tests {
     use super::*;
 
     const FIRST_CASE: &[Instruction] = &[
-        Instruction::new(Turn::Left, 2),
-        Instruction::new(Turn::Right, 3),
+        Instruction::new(Turn::Right, 2),
+        Instruction::new(Turn::Left, 3),
     ];
 
     const SECOND_CASE: &[Instruction] = &[
@@ -163,7 +183,7 @@ mod tests {
     ];
 
     #[test]
-    fn test_add_compound() {
+    fn test_follow_instruction() {
         let mut position = Position::default();
         position.follow_instruction(Instruction::new(Turn::Right, 1));
         position.follow_instruction(Instruction::new(Turn::Right, 1));
@@ -201,8 +221,8 @@ mod tests {
     #[test]
     fn test_follow_until_duplicate() {
         let mut position = Position::default();
-        let dupe = position.follow_until_duplicate(FOURTH_CASE);
-        assert_eq!(position, Position::new(Direction::Up, Point::new(4, 0)));
-        assert_eq!(dupe.unwrap().manhattan(), 4);
+        let dupe = position.follow_until_duplicate(FOURTH_CASE).unwrap();
+        assert_eq!(dupe, Point::new(4, 0));
+        assert_eq!(dupe.manhattan(), 4);
     }
 }
