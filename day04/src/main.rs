@@ -1,21 +1,59 @@
-use day04lib::{sum_valid_sectors, find_np_lines, validate, decrypt};
+use aoclib::{config::Config, website::get_input};
+use day04::{list_decrypted, part1, part2};
 
-use util::get_lines;
+use color_eyre::eyre::Result;
+use std::path::PathBuf;
+use structopt::StructOpt;
 
-fn main() {
-    println!("Enter room lines here:");
-    let lines = get_lines();
-    println!("Sum of valid sectors: {:?}", sum_valid_sectors(&lines));
-    println!();
-    println!("Rooms mentioning the North Pole:");
-    for (name, sector) in find_np_lines(&lines) {
-        println!("  {}  {}", name, sector);
-    }
-    println!();
-    println!("All valid rooms:");
-    for line in lines.lines() {
-        if validate(line) {
-            println!("{} ({})", decrypt(line).unwrap(), line);
+const YEAR: u32 = 2016;
+const DAY: u8 = 4;
+
+#[derive(StructOpt, Debug)]
+struct RunArgs {
+    /// input file
+    #[structopt(long, parse(from_os_str))]
+    input: Option<PathBuf>,
+
+    /// skip part 1
+    #[structopt(long)]
+    no_part1: bool,
+
+    /// run part 2
+    #[structopt(long)]
+    part2: bool,
+
+    #[structopt(long)]
+    list_decrypted: bool,
+}
+
+impl RunArgs {
+    fn input(&self) -> Result<PathBuf> {
+        match self.input {
+            None => {
+                let config = Config::load()?;
+                // this does nothing if the input file already exists, but
+                // simplifies the workflow after cloning the repo on a new computer
+                get_input(&config, YEAR, DAY)?;
+                Ok(config.input_for(YEAR, DAY))
+            }
+            Some(ref path) => Ok(path.clone()),
         }
     }
+}
+
+fn main() -> Result<()> {
+    color_eyre::install()?;
+    let args = RunArgs::from_args();
+    let input_path = args.input()?;
+
+    if !args.no_part1 {
+        part1(&input_path)?;
+    }
+    if args.part2 {
+        part2(&input_path)?;
+    }
+    if args.list_decrypted {
+        list_decrypted(&input_path)?;
+    }
+    Ok(())
 }

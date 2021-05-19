@@ -23,70 +23,88 @@
 //!
 //! What is the sum of the sector IDs of the real rooms?
 
-
-use lazy_static::lazy_static;
-
-// this was _way_ more work than this problem strictly required, but then that's
-// 200 or so lines of code nobody else has to write in Rust again.
+use aoclib::parse;
 use counter::Counter;
-
-// Clearly we're going to have to parse these strings, and it looks like regexes are the
-// right tool for the job. In python, I'd use this one:
-// r"^(?P<name>[a-zA-Z\-]+)(?:(?<!\-)-)(?P<sector>\d+)\[(?P<checksum>[a-zA-Z]{5})\]$"
-// We just need to translate that to Rust.
+use lazy_static::lazy_static;
 use regex::Regex;
+use std::{num::ParseIntError, path::Path, str::FromStr};
 
 lazy_static! {
-    static ref ROOM_RE: Regex = Regex::new(r"(?x)^
+    static ref ROOM_RE: Regex = Regex::new(
+        r"(?x)^
         (?P<name>[a-zA-Z\-]+)  # room name
         (?:-)                  # noncapturing hyphen.
         (?P<sector>\d+)        # sector number.
         \[(?P<checksum>[a-zA-Z]{5})\]  # checksum
-        $").unwrap();
+        $"
+    )
+    .unwrap();
 }
 
-/// Construct a checksum per the Santa Rules
-pub fn make_checksum(string: &str) -> String {
-    let mut counter = Counter::init(string.chars());
-    counter.map.remove(&'-');
-    counter.most_common_ordered().take(5).map(|(ch, _)| ch).collect()
+#[derive(Debug, parse_display::Display)]
+#[display("{name}-{sector}[{checksum}]")]
+struct Room {
+    name: String,
+    sector: u64,
+    checksum: String,
 }
 
-/// `true` if a room string is valid
-pub fn validate(room: &str) -> bool {
-    if let Some(captures) = ROOM_RE.captures(room) {
-        make_checksum(&captures["name"]) == captures["checksum"]
-    } else {
-        false
+impl FromStr for Room {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let captures = ROOM_RE.captures(s).ok_or(Error::NoMatch)?;
+        Ok(Room {
+            name: captures["name"].to_string(),
+            sector: captures["sector"].parse()?,
+            checksum: captures["checksum"].to_string(),
+        })
     }
 }
 
-pub fn count_valid_lines(lines: &str) -> usize {
-    lines.lines().map(|line| line.trim()).filter(|line| validate(line)).count()
+impl Room {
+    /// Construct a checksum per the Santa Rules
+    fn make_checksum(&self) -> String {
+        let mut counter = Counter::<_, usize>::init(self.name.chars());
+        counter.remove(&'-');
+        counter
+            .most_common_ordered()
+            .into_iter()
+            .take(5)
+            .map(|(ch, _)| ch)
+            .collect()
+    }
+
+    /// `true` if this room is valid
+    fn is_valid(&self) -> bool {
+        self.make_checksum() == self.checksum
+    }
+
+    /// Decrypt a room code according to Santa Rules
+    ///
+    /// 1. shift every char by sector number
+    /// 2. dashes become spaces
+    fn decrypt(&self) -> String {
+        shift_str(&self.name, self.sector).replace("-", " ")
+    }
+
+    /// Find valid rooms whose decrypted name contains the words "northpole"
+    ///
+    /// Case-insensitive
+    fn has_north_pole(&self) -> bool {
+        self.is_valid() && self.decrypt().to_lowercase().contains("northpole")
+    }
 }
 
-pub fn sum_valid_sectors(lines: &str) -> usize {
-    lines.lines()
-        .map(|line| line.trim())
-        .filter(|line| validate(line))
-        .map(|line| {
-            ROOM_RE.captures(line).unwrap()["sector"]
-                .parse::<usize>()
-                .expect("Error parsing sector ID as usize")
-        })
-        .sum()
-}
-
-
-fn shift_char(mut ch: char, shift: usize) -> char {
-    use std::ascii::AsciiExt;
-
+fn shift_char(mut ch: char, shift: u64) -> char {
+    if !ch.is_ascii_alphabetic() {
+        return ch;
+    }
     let upper = ch.is_uppercase();
     ch.make_ascii_lowercase();
-    const ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyz";
-    if let Some(index) = ALPHABET.find(ch) {
-        ch = ALPHABET.chars().nth((index + shift) % 26).unwrap();
-    }
+    let ch_idx = ch as u8 - b'a';
+    let shift_idx = ((ch_idx as u64 + shift) % 26) as u8;
+    ch = (shift_idx + b'a') as char;
     if upper {
         ch.make_ascii_uppercase();
     }
@@ -94,76 +112,76 @@ fn shift_char(mut ch: char, shift: usize) -> char {
 }
 
 /// En/decrypt a string using a shift cypher
-pub fn shift_str(encrypted: &str, shift: usize) -> String {
+pub fn shift_str(encrypted: &str, shift: u64) -> String {
     encrypted.chars().map(|ch| shift_char(ch, shift)).collect()
 }
 
-/// Decrypt a room code according to Santa Rules
-///
-/// 1. shift every char by sector number
-/// 2. dashes become spaces
-pub fn decrypt(encrypted: &str) -> Option<String> {
-    if let Some(captures) = ROOM_RE.captures(encrypted) {
-        let shift = captures["sector"].parse::<usize>().expect("Failed to parse sector as usize");
-        let decrypted = shift_str(&captures["name"], shift);
-        Some(decrypted.replace("-", " "))
-    } else {
-        None
-    }
+pub fn part1(path: &Path) -> Result<(), Error> {
+    let valid_sector_sum: u64 = parse::<Room>(path)?
+        .filter(|room| room.is_valid())
+        .map(|room| room.sector)
+        .sum();
+    println!("valid count: {}", valid_sector_sum);
+    Ok(())
 }
 
-/// Find valid rooms whose decrypted name contains the words "north pole"
-///
-/// Case-insensitive
-pub fn find_np_lines(lines: &str) -> Vec<(String, usize)> {
-    lines.lines()
-        .map(|line| line.trim())
-        .filter(|line| validate(line))
-        .map(|line| {
-            let caps = ROOM_RE.captures(line).unwrap();
-            (decrypt(&line).unwrap(),
-             caps["sector"].parse::<usize>().expect("Failed to parse sector as usize"))
-        })
-        .filter(|&(ref name, _)| name.to_lowercase().contains("north pole"))
-        .collect()
+pub fn part2(path: &Path) -> Result<(), Error> {
+    println!("rooms with north pole:");
+    for room in parse::<Room>(path)?.filter(|room| room.has_north_pole()) {
+        println!("  {}", room.sector);
+    }
+    Ok(())
+}
+
+pub fn list_decrypted(path: &Path) -> Result<(), Error> {
+    for room in parse::<Room>(path)? {
+        println!("{}", room.decrypt());
+    }
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("no match for room regex")]
+    NoMatch,
+    #[error("parsing sector")]
+    ParseSector(#[from] ParseIntError),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn get_examples() -> Vec<String> {
-        vec![
-            "aaaaa-bbb-z-y-x-123[abxyz]",
-            "a-b-c-d-e-f-g-h-987[abcde]",
-            "not-a-real-room-404[oarel]",
-            "totally-real-room-200[decoy]",
-            "doesn't match the regex",
-        ]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect()
-    }
+    const EXAMPLES: &[(&'static str, bool)] = &[
+        ("aaaaa-bbb-z-y-x-123[abxyz]", true),
+        ("a-b-c-d-e-f-g-h-987[abcde]", true),
+        ("not-a-real-room-404[oarel]", true),
+        ("totally-real-room-200[decoy]", false),
+        ("doesn't match the regex", false),
+    ];
 
     #[test]
     fn test_validate() {
-        for (room, expected) in get_examples()
-            .iter()
-            .zip([true, true, true, false, false].into_iter()) {
-            assert!(validate(room) == *expected);
+        for (room, expected) in EXAMPLES {
+            let validity = room
+                .parse::<Room>()
+                .map(|room| room.is_valid())
+                .unwrap_or_default();
+            assert_eq!(validity, *expected);
         }
     }
 
     #[test]
-    fn test_count_valid_lines() {
-        let lines = get_examples().join("\n");
-        assert!(count_valid_lines(&lines) == 3);
-    }
-
-    #[test]
     fn test_sum_valid_sectors() {
-        let lines = get_examples().join("\n");
-        assert!(sum_valid_sectors(&lines) == 1514);
+        let sum_valid: u64 = EXAMPLES
+            .iter()
+            .filter_map(|(room, _)| room.parse::<Room>().ok())
+            .filter(|room| room.is_valid())
+            .map(|room| room.sector)
+            .sum();
+        assert_eq!(sum_valid, 1514);
     }
 
     #[test]
@@ -171,7 +189,7 @@ mod tests {
         // this doesn't validate, but that doesn't matter:
         // decryption is orthogonal to validation
         let encrypted = "qzmt-zixmtkozy-ivhz-343[bleah]";
-        assert!(&decrypt(encrypted).expect("failed to decrypt test string") ==
-                "very encrypted name");
+        let room: Room = encrypted.parse().unwrap();
+        assert_eq!(room.decrypt(), "very encrypted name");
     }
 }
