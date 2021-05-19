@@ -76,11 +76,10 @@ impl Instruction {
         }
     }
 
+    // disable clippy here because it's too much hassle to come up with a better name
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Vec<Instruction>> {
-        s.trim()
-            .chars()
-            .map(|c| Instruction::from_char(c))
-            .collect()
+        s.trim().chars().map(Instruction::from_char).collect()
     }
 }
 
