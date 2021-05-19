@@ -424,7 +424,6 @@ dependencies = [
  "counter",
  "lazy_static",
  "regex",
- "util",
 ]
 
 [[package]]
@@ -439,22 +438,15 @@ name = "day06"
 version = "0.1.0"
 dependencies = [
  "counter",
- "util",
 ]
 
 [[package]]
 name = "day07"
 version = "0.1.0"
-dependencies = [
- "util",
-]
 
 [[package]]
 name = "day08"
 version = "0.1.0"
-dependencies = [
- "util",
-]
 
 [[package]]
 name = "day09"
@@ -462,7 +454,6 @@ version = "0.1.0"
 dependencies = [
  "num-bigint 0.4.0",
  "num-traits",
- "util",
 ]
 
 [[package]]
@@ -471,7 +462,6 @@ version = "0.1.0"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
- "util",
 ]
 
 [[package]]
@@ -2250,10 +2240,6 @@ dependencies = [
  "matches",
  "percent-encoding",
 ]
-
-[[package]]
-name = "util"
-version = "0.1.0"
 
 [[package]]
 name = "vcpkg"

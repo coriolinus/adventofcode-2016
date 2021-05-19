@@ -5,4 +5,3 @@ authors = ["Peter Goodspeed-Niklaus <peter.r.goodspeedniklaus@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-util = { path = "../util" }
