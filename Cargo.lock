@@ -399,8 +399,11 @@ dependencies = [
 name = "day02"
 version = "0.1.0"
 dependencies = [
- "lazy_static",
- "util",
+ "aoclib",
+ "color-eyre",
+ "parse-display",
+ "structopt",
+ "thiserror",
 ]
 
 [[package]]

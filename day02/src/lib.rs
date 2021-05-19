@@ -49,7 +49,11 @@
 //! Your puzzle input is the instructions from the document you found at the front desk.
 //! What is the bathroom code?
 
-use lazy_static::lazy_static;
+use std::{
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction {
@@ -73,126 +77,135 @@ impl Instruction {
     }
 
     pub fn from_str(s: &str) -> Option<Vec<Instruction>> {
-        s.trim().chars().map(|c| Instruction::from_char(c)).collect()
+        s.trim()
+            .chars()
+            .map(|c| Instruction::from_char(c))
+            .collect()
     }
 }
 
-pub type Keypad = Vec<Vec<Option<char>>>;
+pub type Keypad = &'static [&'static [Option<char>]];
 
-lazy_static! {
-    static ref KEYPAD: Keypad = vec![
-        vec![None, None, Some('1'), None, None],
-        vec![None, Some('2'), Some('3'), Some('4'), None],
-        vec![Some('5'), Some('6'), Some('7'), Some('8'), Some('9')],
-        vec![None, Some('A'), Some('B'), Some('C'), None],
-        vec![None, None, Some('D'), None, None],
-        ];
-}
+const KEYPAD_ORTHO: Keypad = &[
+    &[Some('1'), Some('2'), Some('3')],
+    &[Some('4'), Some('5'), Some('6')],
+    &[Some('7'), Some('8'), Some('9')],
+];
+
+const KEYPAD_DIAG: Keypad = &[
+    &[None, None, Some('1'), None, None],
+    &[None, Some('2'), Some('3'), Some('4'), None],
+    &[Some('5'), Some('6'), Some('7'), Some('8'), Some('9')],
+    &[None, Some('A'), Some('B'), Some('C'), None],
+    &[None, None, Some('D'), None, None],
+];
+
 /// Represents a key on a keypad
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Key {
     x: usize,
     y: usize,
+    pad: Keypad,
 }
 
 impl Key {
-    /// Private constructor which allows direct setting
-    fn new(x: usize, y: usize) -> Key {
-        Key { x: x, y: y }
-    }
-
-    /// Construct a Key from anything which appears on KEYPAD
-    pub fn from_char(c: char) -> Option<Key> {
-        for (y, line) in KEYPAD.iter().enumerate() {
-            for (x, key_char) in line.iter().enumerate() {
-                if &Some(c) == key_char {
-                    return Some(Key::new(x, y));
+    pub fn center_on(key: char, keypad: Keypad) -> Option<Key> {
+        for (y, row) in keypad.iter().enumerate() {
+            for (x, maybe_key) in row.iter().enumerate() {
+                if *maybe_key == Some(key) {
+                    return Some(Key { x, y, pad: keypad });
                 }
             }
         }
         None
     }
 
-    pub fn shift(&self, inst: Instruction) -> Key {
+    pub fn shift(&mut self, inst: Instruction) {
         use Instruction::*;
 
         match inst {
             Up => {
-                if self.y > 0 && KEYPAD[self.y - 1][self.x] != None {
-                    Key::new(self.x, self.y - 1)
-                } else {
-                    *self
+                if self.y > 0 && self.pad[self.y - 1][self.x].is_some() {
+                    self.y -= 1
                 }
             }
             Down => {
-                if self.y < KEYPAD.len() - 1 && KEYPAD[self.y + 1][self.x] != None {
-                    Key::new(self.x, self.y + 1)
-                } else {
-                    *self
+                if self.y < self.pad.len() - 1 && self.pad[self.y + 1][self.x].is_some() {
+                    self.y += 1;
                 }
             }
             Left => {
-                if self.x > 0 && KEYPAD[self.y][self.x - 1] != None {
-                    Key::new(self.x - 1, self.y)
-                } else {
-                    *self
+                if self.x > 0 && self.pad[self.y][self.x - 1].is_some() {
+                    self.x -= 1;
                 }
             }
             Right => {
-                if self.x < KEYPAD[self.y].len() - 1 && KEYPAD[self.y][self.x + 1] != None {
-                    Key::new(self.x + 1, self.y)
-                } else {
-                    *self
+                if self.x < self.pad[self.y].len() - 1 && self.pad[self.y][self.x + 1].is_some() {
+                    self.x += 1;
                 }
             }
         }
     }
 
-    pub fn shift_many<Instructions>(&self, insts: Instructions) -> Key
-        where Instructions: IntoIterator<Item = Instruction>
-    {
-        let mut k = *self;
+    pub fn shift_many(&mut self, insts: &[Instruction]) {
         for inst in insts {
-            k = k.shift(inst);
+            self.shift(*inst);
         }
-        k
     }
-}
 
-impl Default for Key {
-    fn default() -> Key {
-        Key::from_char('5').expect("Invalid KEYPAD; default not found")
-    }
-}
-
-impl ::std::fmt::Display for Key {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        write!(f,
-               "{}",
-               KEYPAD[self.y][self.x].expect("Invalid Key; not on keypad"))
+    pub fn char(&self) -> char {
+        self.pad[self.y][self.x].expect("can't have a key without a char")
     }
 }
 
 /// Parse a number of lines into a code.
-pub fn decode(lines: &str) -> Option<String> {
-    let mut key = Key::default();
+pub fn decode_on(reader: impl BufRead, keypad: Keypad) -> Result<String, Error> {
+    let mut key = Key::center_on('5', keypad).ok_or(Error::BadKeypad)?;
     let mut out = String::new();
 
-    for line in lines.lines() {
-        if let Some(instructions) = Instruction::from_str(line) {
-            key = key.shift_many(instructions);
-            out += &key.to_string();
-        } else {
-            return None;
-        }
+    for line in reader.lines() {
+        let line = line?;
+        let instructions = Instruction::from_str(&line).ok_or(Error::UnknownInstruction)?;
+        key.shift_many(&instructions);
+        out.push(key.char());
     }
 
-    Some(out)
+    Ok(out)
+}
+
+pub fn part1(path: &Path) -> Result<(), Error> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let code = decode_on(reader, KEYPAD_ORTHO)?;
+    println!("code on ortho keys: {}", code);
+    Ok(())
+}
+
+pub fn part2(path: &Path) -> Result<(), Error> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let code = decode_on(reader, KEYPAD_DIAG)?;
+    println!("code on diag keys: {}", code);
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("unknown instruction")]
+    UnknownInstruction,
+    #[error("bad keypad")]
+    BadKeypad,
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use super::*;
+
+    const EXAMPLE: &str = "ULL\nRRDDD\nLURDL\nUUUUD\n";
 
     #[test]
     /// From the example:
@@ -205,10 +218,16 @@ mod tests {
     /// ```
     ///
     /// produces "5DB3"
-    fn test_decode() {
-        let lines = "ULL\nRRDDD\nLURDL\nUUUUD\n";
-        let result = decode(lines).expect("Decoding failed when it shouldn't");
-        println!("Example result (should be '5DB3'): {}", result);
-        assert!(&result == "5DB3");
+    fn test_decode_diag() {
+        let result = decode_on(Cursor::new(EXAMPLE), KEYPAD_DIAG)
+            .expect("Decoding failed when it shouldn't");
+        assert_eq!(result, "5DB3");
+    }
+
+    #[test]
+    fn test_decode_ortho() {
+        let result = decode_on(Cursor::new(EXAMPLE), KEYPAD_ORTHO)
+            .expect("Decoding failed when it shouldn't");
+        assert_eq!(result, "1985");
     }
 }
