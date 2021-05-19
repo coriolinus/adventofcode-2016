@@ -4,7 +4,6 @@ use std::collections::{BTreeSet, HashSet, VecDeque};
 use std::fmt;
 use std::rc::Rc;
 
-extern crate itertools;
 use itertools::Itertools;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

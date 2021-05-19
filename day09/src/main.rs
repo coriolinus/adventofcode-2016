@@ -1,7 +1,5 @@
-extern crate day09lib;
-use day09lib::{decompress, count_decompressed_v2};
+use day09::{decompress, count_decompressed_v2};
 
-extern crate util;
 use util::get_line;
 
 fn main() {

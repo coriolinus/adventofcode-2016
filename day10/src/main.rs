@@ -1,8 +1,5 @@
-extern crate util;
 use util::get_lines;
-
-extern crate day10lib;
-use day10lib::{parse_lines, process, find_bot_handling};
+use day10::{parse_lines, process, find_bot_handling};
 
 fn main() {
     println!("Enter instructions:");

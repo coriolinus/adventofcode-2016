@@ -1,8 +1,6 @@
 
-extern crate day01lib;
-use day01lib::{parse, Coordinates};
+use day01::{parse, Coordinates};
 
-extern crate util;
 use util::get_line;
 
 fn main() {

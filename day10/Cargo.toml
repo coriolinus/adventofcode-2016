@@ -3,14 +3,7 @@ name = "day10"
 version = "0.1.0"
 authors = ["Peter Goodspeed-Niklaus <peter.r.goodspeedniklaus@gmail.com>"]
 build = "build.rs" # LALRPOP preprocessing
-
-[lib]
-name = "day10lib"
-path = "src/lib.rs"
-
-[[bin]]
-name = "day10bin"
-path = "src/main.rs"
+edition = "2018"
 
 [dependencies]
 util = { path = "../util" }

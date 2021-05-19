@@ -1,7 +1,5 @@
-extern crate day06lib;
 use day06lib::{count_most_frequent, count_least_frequent};
 
-extern crate util;
 use util::get_lines;
 
 fn main() {

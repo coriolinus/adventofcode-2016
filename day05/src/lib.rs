@@ -29,7 +29,6 @@
 //!
 //! Given the actual Door ID, what is the password?
 
-extern crate crypto;
 
 use crypto::md5::Md5;
 use crypto::digest::Digest;

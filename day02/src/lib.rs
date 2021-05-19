@@ -49,8 +49,7 @@
 //! Your puzzle input is the instructions from the document you found at the front desk.
 //! What is the bathroom code?
 
-#[macro_use]
-extern crate lazy_static;
+use lazy_static::lazy_static;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction {

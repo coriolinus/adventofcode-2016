@@ -2,14 +2,7 @@
 name = "day06"
 version = "0.1.0"
 authors = ["Peter Goodspeed-Niklaus <peter.r.goodspeedniklaus@gmail.com>"]
-
-[lib]
-name = "day06lib"
-path = "src/lib.rs"
-
-[[bin]]
-name = "day06bin"
-path = "src/main.rs"
+edition = "2018"
 
 [dependencies]
 counter = "0.5.2"

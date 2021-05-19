@@ -1,8 +1,6 @@
-extern crate day08lib;
-use day08lib::TinyScreen;
-use day08lib::instruction::Instruction;
+use day08::TinyScreen;
+use day08::instruction::Instruction;
 
-extern crate util;
 use util::get_lines;
 
 fn main() {

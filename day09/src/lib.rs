@@ -34,10 +34,8 @@
 //!
 //! What is the decompressed length of the file (your puzzle input)? Don't count whitespace.
 
-extern crate num_bigint;
 use num_bigint::BigUint;
 
-extern crate num_traits;
 use num_traits::Zero;
 use num_traits::cast::FromPrimitive;
 
@@ -269,11 +267,9 @@ pub fn count_decompressed_v2<I>(input: &mut I) -> Option<BigUint>
 mod tests {
     use super::*;
 
-    extern crate num_bigint;
-    use num_bigint::BigUint;
+        use num_bigint::BigUint;
 
-    extern crate num_traits;
-    use num_traits::cast::FromPrimitive;
+        use num_traits::cast::FromPrimitive;
 
     fn get_examples() -> Vec<&'static str> {
         vec![

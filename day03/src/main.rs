@@ -1,7 +1,5 @@
-extern crate day03lib;
-use day03lib::{parse_lines_as_usize, count_valid, parse_lines_vertical_as_usize};
+use day03::{parse_lines_as_usize, count_valid, parse_lines_vertical_as_usize};
 
-extern crate util;
 use util::get_lines;
 
 fn main() {

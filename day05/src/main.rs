@@ -1,5 +1,4 @@
-extern crate day05lib;
-use day05lib::get_password;
+use day05::get_password;
 
 fn main() {
     const INPUT: &'static str = "ugkcyxxp";

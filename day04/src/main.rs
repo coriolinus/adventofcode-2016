@@ -1,7 +1,5 @@
-extern crate day04lib;
 use day04lib::{sum_valid_sectors, find_np_lines, validate, decrypt};
 
-extern crate util;
 use util::get_lines;
 
 fn main() {

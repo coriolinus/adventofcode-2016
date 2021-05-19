@@ -1,7 +1,5 @@
-extern crate day02lib;
-use day02lib::decode;
+use day02::decode;
 
-extern crate util;
 use util::get_lines;
 
 fn main() {

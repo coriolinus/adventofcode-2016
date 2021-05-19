@@ -1,7 +1,5 @@
-extern crate day07lib;
-use day07lib::{supports_tls, supports_ssl};
+use day07::{supports_tls, supports_ssl};
 
-extern crate util;
 use util::get_lines;
 
 fn count_supports_tls(lines: &str) -> usize {

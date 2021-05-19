@@ -1,5 +1,4 @@
-extern crate day11lib;
-use day11lib::{goalseek, input};
+use day11::{goalseek, input};
 
 fn main() {
     let s = input();

@@ -38,7 +38,6 @@
 //! Given the recording in your puzzle input, what is the error-corrected version of
 //! the message being sent?
 
-extern crate counter;
 use counter::Counter;
 
 /// Transpose a vector of vectors into new memory
