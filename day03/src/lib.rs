@@ -16,115 +16,94 @@
 //!
 //! In your puzzle input, how many of the listed triangles are possible?
 
-type Triangle<T> = [T; 3];
+use aoclib::parse;
+use std::path::Path;
 
-
-pub fn is_possible<T>(t: &Triangle<T>) -> bool
-    where T: Copy + Ord + ::std::ops::Add<Output = T>
-{
-    let mut t = t.clone();
-    t.sort();
-    t[0] + t[1] > t[2]
+// this should be a tuple struct, but we're running in to a parse_display limitation
+#[derive(Debug, parse_display::Display, parse_display::FromStr)]
+#[display("{a} {b} {c}")]
+#[from_str(regex = r"(?P<a>\d+)\s+(?P<b>\d+)\s+(?P<c>\d+)")]
+struct Triangle {
+    a: u64,
+    b: u64,
+    c: u64,
 }
 
-pub fn parse_line<T, F>(input: &str, parser: &F) -> Option<Triangle<T>>
-    where F: Fn(&str) -> Option<T>,
-          T: Copy
-{
-    if let Some(items) = input.split_whitespace().map(parser).collect::<Option<Vec<T>>>() {
-        if items.len() == 3 {
-            return Some([items[0], items[1], items[2]]);
-        }
-    }
-    None
-}
-
-pub fn parse_lines<T, F>(input: &str, parser: &F) -> Option<Vec<Triangle<T>>>
-    where F: Fn(&str) -> Option<T>,
-          T: Copy
-{
-    input.lines().map(|line| parse_line(line, parser)).collect()
-}
-
-pub fn parse_lines_as_usize(input: &str) -> Option<Vec<Triangle<usize>>> {
-    parse_lines(input, &|s: &str| s.parse::<usize>().ok())
-}
-
-pub fn parse_lines_vertical<T, F>(input: &str, parser: &F) -> Option<Vec<Triangle<T>>>
-    where F: Fn(&str) -> Option<T>,
-          T: Copy
-{
-    let mut results = Vec::new();
-
-    // Partials: a list of N Vecs containing partial triangles
-    let mut partials = Vec::new();
-
-    // filter out empty lines in a repeatable way
-    let lines = || input.lines().filter(|line| !line.is_empty());
-
-    // initialize the partials with empty vectors
-    if let Some(line) = lines().next() {
-        // assume every line has the same number of columns,
-        // so we can safely examine the first
-        for _ in line.split_whitespace() {
-            partials.push(Vec::new());
-        }
+impl Triangle {
+    fn as_array(&self) -> [u64; 3] {
+        [self.a, self.b, self.c]
     }
 
-    for (number, line) in lines().enumerate() {
+    fn is_possible(&self) -> bool {
+        let mut array = self.as_array();
+        array.sort();
+        array[0] + array[1] > array[2]
+    }
+}
 
-        for (item, mut partial) in line.split_whitespace().zip(partials.iter_mut()) {
-            if let Some(value) = parser(item) {
-                partial.push(value);
-            } else {
-                return None;
-            }
-        }
+#[cfg(test)]
+impl From<[u64; 3]> for Triangle {
+    fn from([a, b, c]: [u64; 3]) -> Self {
+        Triangle { a, b, c }
+    }
+}
 
-
-        if number % 3 == 2 {
-            // every third line; every partial should have three items now
-            for mut partial in partials.iter_mut() {
-                assert!(partial.len() == 3, "Wrong number of columns in input line");
-                results.push([partial[0], partial[1], partial[2]]);
-                partial.clear();
-            }
+fn reorient(triangles: &[Triangle]) -> Vec<Triangle> {
+    let mut vertical = Vec::with_capacity(triangles.len());
+    for block in triangles.chunks_exact(3) {
+        for vertical_idx in 0..3 {
+            vertical.push(Triangle {
+                a: block[0].as_array()[vertical_idx],
+                b: block[1].as_array()[vertical_idx],
+                c: block[2].as_array()[vertical_idx],
+            });
         }
     }
-
-    Some(results)
+    vertical
 }
 
-pub fn parse_lines_vertical_as_usize(input: &str) -> Option<Vec<Triangle<usize>>> {
-    parse_lines_vertical(input, &|s: &str| s.parse::<usize>().ok())
+pub fn part1(path: &Path) -> Result<(), Error> {
+    let possible_triangles = parse::<Triangle>(path)?.filter(|t| t.is_possible()).count();
+    println!("possible triangles: {}", possible_triangles);
+    Ok(())
 }
 
-pub fn count_valid<T>(ts: Vec<Triangle<T>>) -> usize
-    where T: Copy + Ord + ::std::ops::Add<Output = T>
-{
-    ts.iter().filter(|t| is_possible(t)).count()
+pub fn part2(path: &Path) -> Result<(), Error> {
+    let triangles: Vec<Triangle> = parse(path)?.collect();
+    let triangles = reorient(&triangles);
+    let possible = triangles.iter().filter(|t| t.is_possible()).count();
+    println!("possible triangles (vertical orient): {}", possible);
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 #[cfg(test)]
 mod tests {
+    use aoclib::input::parse_str;
+
     use super::*;
 
     #[test]
     fn test_is_not_possible() {
-        let t1 = [5, 10, 25];
-        let t2 = [10, 25, 5];
-        let t3 = [25, 5, 10];
+        let t1: Triangle = [5, 10, 25].into();
+        let t2: Triangle = [10, 25, 5].into();
+        let t3: Triangle = [25, 5, 10].into();
 
-        assert!([t1, t2, t3].iter().all(|t| !is_possible(t)));
+        assert!([t1, t2, t3].iter().all(|t| !t.is_possible()));
     }
 
     #[test]
     fn test_is_possible() {
-        let t1 = [3, 4, 5];
-        let t2 = [40, 50, 30];
-        let t3 = [100, 80, 60];
+        let t1: Triangle = [3, 4, 5].into();
+        let t2: Triangle = [40, 50, 30].into();
+        let t3: Triangle = [100, 80, 60].into();
 
-        assert!([t1, t2, t3].iter().all(|t| is_possible(t)));
+        assert!([t1, t2, t3].iter().all(|t| t.is_possible()));
     }
 
     #[test]
@@ -141,12 +120,11 @@ mod tests {
             [601, 602, 603],
         ];
 
-        if let Some(parsed) = parse_lines_vertical_as_usize(input) {
-            println!("Parsed into:");
-            println!("{:?}", parsed);
-            assert!(parsed == expected, "Parse produced unexpected results");
-        } else {
-            panic!("Failed to parse valid input");
+        let triangles = parse_str(input).unwrap().collect::<Vec<_>>();
+        let triangles = reorient(&triangles);
+
+        for (have, expect) in triangles.iter().zip(expected) {
+            assert_eq!(have.as_array(), expect);
         }
     }
 }
