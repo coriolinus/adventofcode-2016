@@ -12,5 +12,5 @@ name = "day06bin"
 path = "src/main.rs"
 
 [dependencies]
-counter = "0.1"
+counter = "0.5.2"
 util = { path = "../util" }

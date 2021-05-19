@@ -12,4 +12,4 @@ name = "day05bin"
 path = "src/main.rs"
 
 [dependencies]
-rust-crypto = "^0.2"
+rust-crypto = "0.2.36"

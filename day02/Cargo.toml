@@ -13,4 +13,4 @@ path = "src/main.rs"
 
 [dependencies]
 util = { path = "../util" }
-lazy_static = "0.1.*"
+lazy_static = "1.4.0"
