@@ -19,285 +19,190 @@
 //! R5, L5, R5, R3 leaves you 12 blocks away.
 //! How many blocks away is Easter Bunny HQ?
 
+use std::{collections::HashSet, path::Path};
+use aoclib::{parse, CommaSep, geometry::{Direction, Point, line_segment::LineSegment}};
 
-
-#[derive(Debug, Copy, Clone)]
-pub enum Rotation {
+#[derive(Clone, Copy, Debug, parse_display::Display, parse_display::FromStr)]
+enum Turn {
+    #[display("L")]
     Left,
+    #[display("R")]
     Right,
 }
 
-pub type Direction = (Rotation, usize);
-pub type Directions = Vec<Direction>;
-
-pub fn parse(input: &str) -> Directions {
-    let mut results = Vec::with_capacity(input.len() / 4);
-
-    for token in input.split(", ") {
-        let (dir_char, dist) = token.split_at(1);
-
-        let direction = match dir_char {
-            "L" => Rotation::Left,
-            "R" => Rotation::Right,
-            _ => panic!("Invalid input; invalid rotation char"),
-        };
-
-        results.push((direction,
-                      usize::from_str_radix(dist, 10)
-                        .expect("Invalid input; unparseable distance")));
-    }
-
-    results
+#[derive(Clone, Copy, Debug, parse_display::Display, parse_display::FromStr)]
+#[display("{turn}{distance}")]
+#[from_str(regex=r" ?(?P<turn>[LR])(?P<distance>\d+)")]
+struct Instruction {
+    turn: Turn,
+    distance: i32,
 }
 
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Facing {
-    North,
-    South,
-    East,
-    West,
-}
-
-impl Facing {
-    pub fn turn(&self, r: Rotation) -> Facing {
-        use Facing::*;
-        match r {
-            Rotation::Left => {
-                match *self {
-                    North => West,
-                    West => South,
-                    South => East,
-                    East => North,
-                }
-            }
-            Rotation::Right => {
-                match *self {
-                    North => East,
-                    East => South,
-                    South => West,
-                    West => North,
-                }
-            }
-        }
+#[cfg(test)]
+impl Instruction {
+    const fn new(turn: Turn, distance: i32) -> Instruction {
+        Instruction { turn, distance }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Coordinates {
-    facing: Facing,
-    x: isize,
-    y: isize,
+pub struct Position {
+    facing: Direction,
+    location: Point,
 }
 
-impl Default for Coordinates {
-    fn default() -> Coordinates {
-        Coordinates {
-            facing: Facing::North,
-            x: 0,
-            y: 0,
+impl Default for Position {
+    fn default() -> Self {
+        Self {
+            facing: Direction::Up,
+            location: Point::default(),
         }
     }
 }
 
-impl Coordinates {
-    pub fn new(facing: Facing, x: isize, y: isize) -> Coordinates {
-        Coordinates {
-            facing: facing,
-            x: x,
-            y: y,
-        }
+
+impl Position {
+    #[cfg(test)]
+    fn new(facing: Direction, location: Point) -> Position {
+        Position { facing, location }
     }
 
-    pub fn add(&self, direction: Direction) -> Coordinates {
-        let (rotation, distance) = direction;
-        let distance = distance as isize;
-
-        let facing = self.facing.turn(rotation);
-
-        let (x, y) = {
-            use Facing::*;
-            match facing {
-                North => (self.x, self.y + distance),
-                East => (self.x + distance, self.y),
-                South => (self.x, self.y - distance),
-                West => (self.x - distance, self.y),
+    fn follow_instruction(&mut self, instruction: Instruction) {
+        match instruction.turn {
+            Turn::Left  => {
+                self.facing.turn_left();
             }
+            Turn::Right => {self.facing.turn_right();},
+        }
+        self.location += LineSegment{direction: self.facing, distance: instruction.distance};
+    }
+
+    fn follow(&mut self, instructions: &[Instruction]) {
+        for instruction in instructions {
+            self.follow_instruction(*instruction);
+        }
+    }
+
+    fn step_instruction(&mut self, instruction: Instruction) -> impl '_ + Iterator<Item=Point> {
+        match instruction.turn {
+            Turn::Left => self.facing.turn_left(),
+            Turn::Right => self.facing.turn_right(),
         };
 
-        Coordinates {
-            facing: facing,
-            x: x,
-            y: y,
-        }
+        (0..instruction.distance).map(move |distance| {self.location += LineSegment {direction: self.facing, distance: 1}; self.location})
     }
 
-    pub fn follow(&self, directions: &Directions) -> Coordinates {
-        let mut coords = *self;
-        for direction in directions {
-            coords = coords.add(*direction);
-        }
-        coords
-    }
-
-    pub fn follow_until_duplicate(&self, directions: &Directions) -> Option<Coordinates> {
-        use std::collections::HashSet;
-
+    fn follow_until_duplicate(&mut self, instructions: &[Instruction]) -> Option<Point> {
         let mut visited = HashSet::new();
-        let mut coords = *self;
 
         // add current location before moving
-        visited.insert((coords.x, coords.y));
+        visited.insert(self.location);
 
-        for direction in directions {
-            let (rotation, distance) = *direction;
-            coords.facing = coords.facing.turn(rotation);
-
-            // step over each point individually, and record them
-            for _ in 0..distance {
-                let (x, y) = {
-                    use Facing::*;
-                    match coords.facing {
-                        North => (coords.x, coords.y + 1),
-                        East => (coords.x + 1, coords.y),
-                        South => (coords.x, coords.y - 1),
-                        West => (coords.x - 1, coords.y),
-                    }
-                };
-
-                // update our working coordinates
-                coords.x = x;
-                coords.y = y;
-
-                // if the point is already visited, return early
-                // otherwise record it and continue
-                if visited.contains(&(x, y)) {
-                    return Some(coords);
-                } else {
-                    visited.insert((x, y));
+        for instruction in instructions {
+            for step in self.step_instruction(*instruction) {
+                if !visited.insert(step) {
+                    return Some(step);
                 }
-
             }
         }
         None
     }
+}
 
-    pub fn manhattan(&self) -> isize {
-        self.x.abs() + self.y.abs()
-    }
+pub fn part1(path: &Path) -> Result<(), Error> {
+    let instructions = parse::<CommaSep<Instruction>>(path)?.flatten().collect::<Vec<_>>();
+    let mut position = Position::default();
+    position.follow(&instructions);
+    println!("coords of hq: {:#?}", position.location);
+    println!("hq manhattan: {}", position.location.manhattan());
+    Ok(())
+}
+
+pub fn part2(path: &Path) -> Result<(), Error> {
+    let instructions = parse::<CommaSep<Instruction>>(path)?.flatten().collect::<Vec<_>>();
+    let mut position = Position::default();
+    position.follow(&instructions);
+    println!("coords of hq: {:#?}", position.location);
+    println!("hq manhattan: {}", position.location.manhattan());
+    unimplemented!()
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_add_default() {
-        // test both rotation directions
-        assert!(Coordinates::default().add((Rotation::Right, 1)) ==
-                Coordinates::new(Facing::East, 1, 0));
+    const FIRST_CASE: &[Instruction] = &[
+        Instruction::new(Turn::Left, 2),
+        Instruction::new(Turn::Right, 3),
+    ];
 
-        assert!(Coordinates::default().add((Rotation::Left, 1)) ==
-                Coordinates::new(Facing::West, -1, 0));
+    const SECOND_CASE: &[Instruction] = &[
+        Instruction::new(Turn::Right, 2),
+        Instruction::new(Turn::Right, 2),
+        Instruction::new(Turn::Right, 2),
+    ];
 
-        // test a different distance
-        assert!(Coordinates::default().add((Rotation::Right, 5)) ==
-                Coordinates::new(Facing::East, 5, 0));
+    const THIRD_CASE: &[Instruction] = &[
+        Instruction::new(Turn::Right, 5),
+        Instruction::new(Turn::Left, 5),
+        Instruction::new(Turn::Right, 5),
+        Instruction::new(Turn::Right, 3),
+    ];
 
-        // test a different initial value
-        assert!(Coordinates::new(Facing::East, 0, -5).add((Rotation::Left, 5)) ==
-                Coordinates::default());
-    }
-
-    fn get_first_case() -> Directions {
-        use Rotation::*;
-
-        vec![
-            (Right, 2),
-            (Left, 3),
-        ]
-    }
-
-    fn get_second_case() -> Directions {
-        use Rotation::*;
-
-        vec![
-            (Right, 2),
-            (Right, 2),
-            (Right, 2),
-        ]
-    }
-
-    fn get_third_case() -> Directions {
-        use Rotation::*;
-
-        vec![
-            (Right, 5),
-            (Left, 5),
-            (Right, 5),
-            (Right, 3),
-        ]
-    }
+    const FOURTH_CASE: &[Instruction] = &[
+        Instruction::new(Turn::Right, 8),
+        Instruction::new(Turn::Right, 4),
+        Instruction::new(Turn::Right, 4),
+        Instruction::new(Turn::Right, 8),
+    ];
 
     #[test]
     fn test_add_compound() {
-        assert!(Coordinates::default()
-            .add((Rotation::Right, 1))
-            .add((Rotation::Right, 1)) == Coordinates::new(Facing::South, 1, -1));
+        let mut position = Position::default();
+        position.follow_instruction(Instruction::new(Turn::Right, 1));
+        position.follow_instruction(Instruction::new(Turn::Right, 1));
+        assert_eq!(position, Position::new(Direction::Down, Point::new(1, -1)));
 
-        assert!(Coordinates::new(Facing::South, 1, -1)
-            .add((Rotation::Right, 1))
-            .add((Rotation::Right, 1)) == Coordinates::default());
+        position.follow_instruction(Instruction::new(Turn::Right, 1));
+        position.follow_instruction(Instruction::new(Turn::Right, 1));
+        assert_eq!(position, Position::default());
     }
 
     #[test]
     fn test_follow_first() {
-        assert!(Coordinates::default().follow(&get_first_case()) ==
-                Coordinates::new(Facing::North, 2, 3));
+        let mut position = Position::default();
+        position.follow(FIRST_CASE);
+        assert_eq!(position, Position::new(Direction::Up, Point::new(2, 3)));
+        assert_eq!(position.location.manhattan(), 5);
     }
 
     #[test]
     fn test_follow_second() {
-        assert!(Coordinates::default().follow(&get_second_case()) ==
-                Coordinates::new(Facing::West, 0, -2));
+        let mut position = Position::default();
+        position.follow(SECOND_CASE);
+        assert_eq!(position, Position::new(Direction::Left, Point::new(0, -2)));
+        assert_eq!(position.location.manhattan(), 2);
     }
 
     #[test]
     fn test_follow_third() {
-        assert!(Coordinates::default().follow(&get_third_case()) ==
-                Coordinates::new(Facing::South, 10, 2));
-    }
-
-    #[test]
-    fn test_first() {
-        assert!(Coordinates::default().follow(&get_first_case()).manhattan() == 5);
-    }
-
-    #[test]
-    fn test_second() {
-        assert!(Coordinates::default().follow(&get_second_case()).manhattan() == 2);
-    }
-
-    #[test]
-    fn test_third() {
-        assert!(Coordinates::default().follow(&get_third_case()).manhattan() == 12);
+        let mut position = Position::default();
+        position.follow(THIRD_CASE);
+        assert_eq!(position, Position::new(Direction::Down, Point::new(10, 2)));
+        assert_eq!(position.location.manhattan(), 12);
     }
 
     #[test]
     fn test_follow_until_duplicate() {
-        let directions = {
-            use Rotation::*;
-
-            vec![
-                (Right, 8),
-                (Right, 4),
-                (Right, 4),
-                (Right, 8),
-            ]
-        };
-
-        let fud = Coordinates::default().follow_until_duplicate(&directions);
-        assert!(fud == Some(Coordinates::new(Facing::North, 4, 0)));
-        assert!(fud.unwrap().manhattan() == 4);
+        let mut position = Position::default();
+        let dupe = position.follow_until_duplicate(FOURTH_CASE);
+        assert_eq!(position, Position::new(Direction::Up, Point::new(4, 0)));
+        assert_eq!(dupe.unwrap().manhattan(), 4);
     }
 }
