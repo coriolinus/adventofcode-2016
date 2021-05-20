@@ -482,7 +482,11 @@ dependencies = [
 name = "day06"
 version = "0.1.0"
 dependencies = [
+ "aoclib",
+ "color-eyre",
  "counter",
+ "structopt",
+ "thiserror",
 ]
 
 [[package]]
