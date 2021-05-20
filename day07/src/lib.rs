@@ -23,22 +23,29 @@
 //!
 //! How many IPs in your puzzle input support TLS?
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Day07Err {
-    UnmatchedBrackets,
-    NestedBrackets(usize, usize),
-    ReversedBrackets(usize, usize),
+use aoclib::parse;
+use std::path::Path;
+
+/// Assert that this let pattern is irrefutable.
+macro_rules! assert_irrefutable {
+    (let [ $( $binding:ident ),* $(,)? ] = $e:expr ) => {
+        let [ $($binding),* ] = if let [ $($binding),* ] = $e {
+            [ $($binding),* ]
+        } else {
+            unreachable!()
+        };
+    };
 }
 
 /// Split a string into a list of substrings, split by square brackets.
 ///
-/// Return the section and whether or not it occurs within brackets.
+/// Return a list of `(section, is_hypernet)`.
 ///
 /// Nested or unmatched brackets cause this to return an error.
-pub fn split_brackets<'a>(input: &'a str) -> Result<Vec<(&'a str, bool)>, Day07Err> {
+pub fn split_brackets(input: &str) -> Result<Vec<(&str, bool)>, Error> {
     // ensure we have the same number of brackets
     if input.chars().filter(|&c| c == '[').count() != input.chars().filter(|&c| c == ']').count() {
-        return Err(Day07Err::UnmatchedBrackets);
+        return Err(Error::UnmatchedBrackets);
     }
 
     // otherwise, match them into sections, and check those
@@ -49,7 +56,7 @@ pub fn split_brackets<'a>(input: &'a str) -> Result<Vec<(&'a str, bool)>, Day07E
     // validate that we have sane brackets
     for &(start, end) in bracket_sections.iter() {
         if start >= end {
-            return Err(Day07Err::ReversedBrackets(start, end));
+            return Err(Error::ReversedBrackets(input[end..=start].into()));
         }
     }
     for window in bracket_sections.windows(2) {
@@ -57,7 +64,7 @@ pub fn split_brackets<'a>(input: &'a str) -> Result<Vec<(&'a str, bool)>, Day07E
         let (start2, _) = window[1];
 
         if end1 >= start2 {
-            return Err(Day07Err::NestedBrackets(start1, start2));
+            return Err(Error::NestedBrackets(input[start1..=start2].into()));
         }
     }
 
@@ -71,7 +78,7 @@ pub fn split_brackets<'a>(input: &'a str) -> Result<Vec<(&'a str, bool)>, Day07E
     // then, we append a section containing everything after the final bracket
     //
     // Example: the string `abba[mnop]qrst`
-    // will map start, end once, at (4, 9)
+    // will map `(start, end)` once, at `(4, 9)`
     // we create three substrings: [[0..4], [5..9], [10..14]]
     for (start, end) in bracket_sections {
         if start > index {
@@ -100,31 +107,36 @@ pub fn contains_abba(input: &str) -> bool {
     // but we _shouldn't_ encounter that for this problem.
     let bytes = input.as_bytes();
 
-    for start in 0..(bytes.len() - 3) {
-        if bytes[start] != bytes[start + 1] && // first two don't match
-            bytes[start + 1] == bytes[start + 2] && // inner two match
-            bytes[start] == bytes[start + 3]
-        // outer two match
-        {
-            return true;
-        }
-    }
-    false
+    bytes.windows(4).any(|window| {
+        assert_irrefutable!(let [a1, b1, b2, a2] = window);
+        a1 != b1 && a1 == a2 && b1 == b2
+    })
+}
+
+pub fn supports_tls(ipv7: &str) -> bool {
+    split_brackets(ipv7)
+        .map(|brackets| {
+            brackets
+                .iter()
+                .any(|&(section, is_hypernet)| !is_hypernet && contains_abba(section))
+                && !brackets
+                    .iter()
+                    .any(|&(section, is_hypernet)| is_hypernet && contains_abba(section))
+        })
+        .unwrap_or_default()
 }
 
 /// Compute a list of all ABAs in the contained string.
 ///
 /// Return (a, b)
-pub fn contained_abas(input: &str) -> Vec<(char, char)> {
+pub fn contained_abas(input: &str) -> Vec<&str> {
     let mut abas = Vec::new();
     let bytes = input.as_bytes();
 
-    for start in 0..(bytes.len() - 2) {
-        if bytes[start] != bytes[start + 1] && // first two don't match
-            bytes[start] == bytes[start + 2]
-        // outer two match
-        {
-            abas.push((bytes[start] as char, bytes[start + 1] as char));
+    for (start, window) in bytes.windows(3).enumerate() {
+        assert_irrefutable!(let [a1, b, a2] = window);
+        if a1 != b && a1 == a2 {
+            abas.push(&input[start..start + 3]);
         }
     }
 
@@ -132,125 +144,126 @@ pub fn contained_abas(input: &str) -> Vec<(char, char)> {
 }
 
 /// True if any sequence bab appears in input, given the list of (a, b) pairs
-pub fn contains_bab(input: &str, abas: &Vec<(char, char)>) -> bool {
-    abas.iter().any(|&(a, b)| input.contains(&[b, a, b].into_iter().cloned().collect::<String>()))
+///
+/// It's an `O(n**2)` search, but the list of abas should be pretty short.
+pub fn contains_bab(input: &str, abas: &[&str]) -> bool {
+    abas.iter().any(|aba| {
+        assert_irrefutable!(let [a1, b, _a2] = aba.as_bytes());
+        let bab_array = [*b, *a1, *b];
+        let bab = match std::str::from_utf8(&bab_array) {
+            Ok(bab) => bab,
+            _ => return false,
+        };
+        input.contains(bab)
+    })
 }
 
 pub fn supports_ssl(ipv7: &str) -> bool {
-    if let Ok(brackets) = split_brackets(ipv7) {
-        let mut abas = Vec::new();
-        for supernet in brackets.iter().filter(|t| !t.1).map(|&(s, _)| s) {
-            abas.extend(contained_abas(supernet));
-        }
-        for hypernet in brackets.iter().filter(|t| t.1).map(|&(s, _)| s) {
-            if contains_bab(hypernet, &abas) {
-                return true;
-            }
-        }
-    }
-    false
+    split_brackets(ipv7)
+        .map(|brackets| {
+            let (hypernets, supernets): (Vec<_>, Vec<_>) = brackets
+                .into_iter()
+                .partition(|&(_s, is_hypernet)| is_hypernet);
+            let mut abas: Vec<_> = supernets
+                .into_iter()
+                .flat_map(|(supernet, _)| contained_abas(supernet))
+                .collect();
+            abas.sort_unstable();
+            abas.dedup();
+
+            hypernets
+                .into_iter()
+                .any(|(hypernet, _)| contains_bab(hypernet, &abas))
+        })
+        .unwrap_or_default()
 }
 
-pub fn supports_tls(ipv7: &str) -> bool {
-    if let Ok(brackets) = split_brackets(ipv7) {
-        let mut has_abba = false;
-        for (section, is_hypernet) in brackets {
-            if contains_abba(section) {
-                if is_hypernet {
-                    return false;
-                } else {
-                    has_abba = true;
-                }
-            }
-        }
-        has_abba
-    } else {
-        false
-    }
+pub fn part1(path: &Path) -> Result<(), Error> {
+    let supports_tls = parse::<String>(path)?
+        .filter(|ipv7| supports_tls(ipv7))
+        .count();
+    println!("supports tls: {}", supports_tls);
+    Ok(())
+}
+
+pub fn part2(path: &Path) -> Result<(), Error> {
+    let supports_ssl = parse::<String>(path)?
+        .filter(|ipv7| supports_ssl(ipv7))
+        .count();
+    println!("supports ssl: {}", supports_ssl);
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("unmatched brackets")]
+    UnmatchedBrackets,
+    #[error("nested brackets: \"{0}\"")]
+    NestedBrackets(String),
+    #[error("reversed brackets: \"{0}\"")]
+    ReversedBrackets(String),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn get_examples() -> Vec<String> {
-        vec![
-            "abba[mnop]qrst",
-            "abcd[bddb]xyyx",
-            "aaaa[qwer]tyui",
-            "ioxxoj[asdfgh]zxcvbn",
-        ]
-            .iter()
-            .map(|s| s.to_string())
-            .collect()
-    }
+    const EXAMPLES: &[&str] = &[
+        "abba[mnop]qrst",
+        "abcd[bddb]xyyx",
+        "aaaa[qwer]tyui",
+        "ioxxoj[asdfgh]zxcvbn",
+    ];
 
     #[test]
     fn test_split_brackets_happy() {
         let expected = vec![
-            vec![
-                ("abba", false),
-                ("mnop", true),
-                ("qrst", false),
-            ],
-            vec![
-                ("abcd", false),
-                ("bddb", true),
-                ("xyyx", false),
-            ],
-            vec![
-                ("aaaa", false),
-                ("qwer", true),
-                ("tyui", false),
-            ],
-            vec![
-                ("ioxxoj", false),
-                ("asdfgh", true),
-                ("zxcvbn", false),
-            ],
+            vec![("abba", false), ("mnop", true), ("qrst", false)],
+            vec![("abcd", false), ("bddb", true), ("xyyx", false)],
+            vec![("aaaa", false), ("qwer", true), ("tyui", false)],
+            vec![("ioxxoj", false), ("asdfgh", true), ("zxcvbn", false)],
         ];
 
-        for (example, expect) in get_examples().iter().zip(expected) {
-            assert!(split_brackets(&example) == Ok(expect));
+        for (example, expect) in EXAMPLES.iter().zip(expected) {
+            assert!(split_brackets(&example).unwrap() == expect);
         }
     }
 
     #[test]
     fn test_split_brackets_unmatched() {
         for case in ["[", "]", "[][", "][]"].iter() {
-            assert!(split_brackets(case) == Err(Day07Err::UnmatchedBrackets));
+            assert!(matches!(
+                split_brackets(case).unwrap_err(),
+                Error::UnmatchedBrackets
+            ));
         }
     }
 
     #[test]
     fn test_split_brackets_nested() {
         for case in ["[[]]", "[][[]]", "[[[]]]"].iter() {
-            match split_brackets(case) {
-                Err(Day07Err::NestedBrackets(_, _)) => {}
-                e => {
-                    println!("{:?}", e);
-                    panic!("Wrong error returned");
-                }
-            }
+            assert!(matches!(
+                split_brackets(case),
+                Err(Error::NestedBrackets(_))
+            ));
         }
     }
 
     #[test]
     fn test_split_brackets_reversed() {
         for case in ["][", "[]][", "[][]][", "][[]"].iter() {
-            match split_brackets(case) {
-                Err(Day07Err::ReversedBrackets(_, _)) => {}
-                e => {
-                    println!("{:?}", e);
-                    panic!("Wrong error returned");
-                }
-            }
+            assert!(matches!(
+                split_brackets(case),
+                Err(Error::ReversedBrackets(_))
+            ));
         }
     }
 
     #[test]
     fn test_contains_abba() {
-        for (case, expect) in get_examples().iter().zip([true, true, false, true].into_iter()) {
+        for (case, expect) in EXAMPLES.iter().zip([true, true, false, true].iter()) {
             assert!(contains_abba(case) == *expect);
         }
         assert!(contains_abba("abba") == true);
@@ -261,12 +274,14 @@ mod tests {
 
     #[test]
     fn test_supports_tls() {
-        for (case, expect) in get_examples().iter().zip([true, false, false, true].into_iter()) {
-            println!("Case '{}': expect {} found {}",
-                     case,
-                     expect,
-                     supports_tls(case));
-            assert!(supports_tls(case) == *expect);
+        for (case, expect) in EXAMPLES.iter().zip([true, false, false, true].iter()) {
+            println!(
+                "Case '{}': expect {} found {}",
+                case,
+                expect,
+                supports_tls(case)
+            );
+            assert_eq!(supports_tls(case), *expect);
         }
     }
 
@@ -279,11 +294,13 @@ mod tests {
             ("zazbz[bzb]cdb", true),
         ];
         for (case, expect) in cases {
-            println!("Case '{}': expect {} found {}",
-                     case,
-                     expect,
-                     supports_ssl(case));
-            assert!(supports_ssl(case) == expect);
+            println!(
+                "Case '{}': expect {} found {}",
+                case,
+                expect,
+                supports_ssl(case)
+            );
+            assert_eq!(supports_ssl(case), expect);
         }
     }
 }
