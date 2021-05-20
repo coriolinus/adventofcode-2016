@@ -1,8 +1,56 @@
-use day05::get_password;
+use aoclib::{config::Config, website::get_input};
+use day05::{part1, part2};
 
-fn main() {
-    const INPUT: &'static str = "ugkcyxxp";
-    println!("Hashing...");
-    let password = get_password(INPUT).into_iter().cloned().collect::<String>();
-    println!("{}", password);
+use color_eyre::eyre::Result;
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+const YEAR: u32 = 2016;
+const DAY: u8 = 5;
+
+#[derive(StructOpt, Debug)]
+struct RunArgs {
+    /// input file
+    #[structopt(long, parse(from_os_str))]
+    input: Option<PathBuf>,
+
+    /// skip part 1
+    #[structopt(long)]
+    no_part1: bool,
+
+    /// run part 2
+    #[structopt(long)]
+    part2: bool,
+
+    #[structopt(long)]
+    list_decrypted: bool,
+}
+
+impl RunArgs {
+    fn input(&self) -> Result<PathBuf> {
+        match self.input {
+            None => {
+                let config = Config::load()?;
+                // this does nothing if the input file already exists, but
+                // simplifies the workflow after cloning the repo on a new computer
+                get_input(&config, YEAR, DAY)?;
+                Ok(config.input_for(YEAR, DAY))
+            }
+            Some(ref path) => Ok(path.clone()),
+        }
+    }
+}
+
+fn main() -> Result<()> {
+    color_eyre::install()?;
+    let args = RunArgs::from_args();
+    let input_path = args.input()?;
+
+    if !args.no_part1 {
+        part1(&input_path)?;
+    }
+    if args.part2 {
+        part2(&input_path)?;
+    }
+    Ok(())
 }
