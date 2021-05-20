@@ -64,30 +64,27 @@
 //! There seems to be an intermediate check of the voltage used by the display: after you swipe
 //! your card, if the screen did work, how many pixels should be lit?
 
-pub mod instruction;
-use instruction::Instruction;
+use aoclib::{
+    geometry::{tile::Bool, Map, Point},
+    parse,
+};
+use std::{collections::VecDeque, path::Path};
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct TinyScreen {
-    width: usize,
-    height: usize,
-    pixels: Vec<Vec<bool>>,
+#[derive(Debug, PartialEq, Eq, Clone, Copy, parse_display::Display, parse_display::FromStr)]
+pub enum Instruction {
+    #[display("rect {0}x{1}")]
+    Rect(usize, usize),
+    #[display("rotate row y={0} by {1}")]
+    RotateRow(usize, usize),
+    #[display("rotate column x={0} by {1}")]
+    RotateCol(usize, usize),
 }
 
-impl TinyScreen {
-    pub fn new(width: usize, height: usize) -> TinyScreen {
-        TinyScreen {
-            width: width,
-            height: height,
-            pixels: vec![vec![false; width]; height],
-        }
-    }
+pub struct Screen(Map<Bool>);
 
-    pub fn get_width(&self) -> usize {
-        self.width
-    }
-    pub fn get_height(&self) -> usize {
-        self.height
+impl Screen {
+    pub fn new(width: usize, height: usize) -> Screen {
+        Screen(Map::new(width, height))
     }
 
     pub fn apply(&mut self, instruction: Instruction) {
@@ -98,72 +95,97 @@ impl TinyScreen {
         }
     }
 
-    pub fn rect(&mut self, width: usize, height: usize) {
-        for row in 0..height {
-            for col in 0..width {
-                self.pixels[row][col] = true;
+    fn rect(&mut self, width: usize, height: usize) {
+        // we have to fill in the top left; origin is on the bottom left
+        for y in (self.0.height() - height)..self.0.height() {
+            for x in 0..width {
+                self.0[(x, y)] = true.into();
             }
         }
     }
 
-    pub fn rotate_col(&mut self, col: usize, by: usize) {
+    fn rotate_col(&mut self, x: usize, by: usize) {
         // first copy the current column, then write it back
-        let mut current_column = Vec::with_capacity(self.height);
-        for row in 0..self.height {
-            current_column.push(self.pixels[row][col]);
-        }
-        for row in 0..self.height {
-            self.pixels[(row + by) % self.height][col] = current_column[row];
+        let init = Point::from((x, 0));
+        let mut col: VecDeque<_> = self
+            .0
+            .project(init, 0, 1)
+            .map(|point| self.0[point])
+            .collect();
+        // since we started at the bottom, this rotates the row down
+        col.rotate_left(by);
+
+        for (y, value) in col.into_iter().enumerate() {
+            self.0[(x, y)] = value;
         }
     }
 
-    pub fn rotate_row(&mut self, row: usize, by: usize) {
+    fn rotate_row(&mut self, y: usize, by: usize) {
         // first copy the current row, then write it back
-        let current_row = self.pixels[row].clone();
-        for col in 0..self.width {
-            self.pixels[row][(col + by) % self.width] = current_row[col];
+        let y = self.0.height() - y - 1;
+        let mut row: VecDeque<_> = self
+            .0
+            .project(Point::new(0, y as i32), 1, 0)
+            .map(|point| self.0[point])
+            .collect();
+        row.rotate_right(by);
+
+        for (x, value) in row.into_iter().enumerate() {
+            self.0[(x, y)] = value;
         }
     }
 
-    pub fn num_pixels_lit(&self) -> usize {
-        self.pixels
-            .iter()
-            .map(|row| row.iter().filter(|&px| *px).count())
-            .sum()
+    fn num_pixels_lit(&self) -> usize {
+        self.0.iter().filter(|pixel| (**pixel).into()).count()
     }
 }
 
-impl Default for TinyScreen {
-    fn default() -> TinyScreen {
-        TinyScreen::new(50, 6)
+impl Default for Screen {
+    fn default() -> Screen {
+        Screen::new(50, 6)
     }
 }
 
-impl std::fmt::Display for TinyScreen {
+impl std::fmt::Display for Screen {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for line in self.pixels.iter() {
-            writeln!(f,
-                     "{}",
-                     line.iter().map(|px| if *px { '#' } else { '.' }).collect::<String>())?;
-        }
-        Ok(())
+        self.0.fmt(f)
     }
 }
 
+pub fn part1(path: &Path) -> Result<(), Error> {
+    let mut screen = Screen::default();
+    for instruction in parse::<Instruction>(path)? {
+        screen.apply(instruction);
+    }
+    println!("num pixels lit: {}", screen.num_pixels_lit());
+    Ok(())
+}
+
+pub fn part2(path: &Path) -> Result<(), Error> {
+    let mut screen = Screen::default();
+    for instruction in parse::<Instruction>(path)? {
+        screen.apply(instruction);
+    }
+    println!("screen:\n{}", screen);
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::instruction::Instruction;
 
-    pub fn get_example_instructions() -> Vec<&'static str> {
-        vec![
-                "rect 3x2",
-                "rotate column x=1 by 1",
-                "rotate row y=0 by 4",
-                "rotate column x=1 by 1",
-            ]
-    }
+    pub const EXAMPLE: &[&str] = &[
+        "rect 3x2",
+        "rotate column x=1 by 1",
+        "rotate row y=0 by 4",
+        "rotate column x=1 by 1",
+    ];
 
     #[test]
     /// rect 3x2 creates a small rectangle in the top-left corner:
@@ -196,52 +218,36 @@ mod tests {
     /// .#..#.#
     /// #.#....
     /// .#.....
+    /// ```
     fn test_example() {
-        let expected = vec![
-            TinyScreen {
-                width: 7,
-                height: 3,
-                pixels: vec![
-                    vec![true, true, true, false, false, false, false],
-                    vec![true, true, true, false, false, false, false],
-                    vec![false, false, false, false, false, false, false],
-                ],
-            },
-            TinyScreen {
-                width: 7,
-                height: 3,
-                pixels: vec![
-                    vec![true, false, true, false, false, false, false],
-                    vec![true, true, true, false, false, false, false],
-                    vec![false, true, false, false, false, false, false],
-                ],
-            },
-            TinyScreen {
-                width: 7,
-                height: 3,
-                pixels: vec![
-                    vec![false, false, false, false, true, false, true],
-                    vec![true, true, true, false, false, false, false],
-                    vec![false, true, false, false, false, false, false],
-                ],
-            },
-            TinyScreen {
-                width: 7,
-                height: 3,
-                pixels: vec![
-                    vec![false, true, false, false, true, false, true],
-                    vec![true, false, true, false, false, false, false],
-                    vec![false, true, false, false, false, false, false],
-                ],
-            },
-                            ];
-        let mut ts = TinyScreen::new(7, 3);
-        for (instruction, expect) in get_example_instructions()
+        let expected = &[
+            "###....\n###....\n.......\n",
+            "#.#....\n###....\n.#.....\n",
+            "....#.#\n###....\n.#.....\n",
+            ".#..#.#\n#.#....\n.#.....\n",
+        ];
+        let mut ts = Screen::new(7, 3);
+        for (instruction, expect) in EXAMPLE
             .iter()
-            .map(|i| Instruction::parse(i).unwrap())
-            .zip(expected) {
+            .map(|instruction| instruction.parse::<Instruction>().unwrap())
+            .zip(expected)
+        {
             ts.apply(instruction);
-            assert!(ts == expect);
+            assert_eq!(&ts.to_string(), expect);
+        }
+    }
+
+    #[test]
+    fn test_parse_instructions() {
+        let expected = vec![
+            Instruction::Rect(3, 2),
+            Instruction::RotateCol(1, 1),
+            Instruction::RotateRow(0, 4),
+            Instruction::RotateCol(1, 1),
+        ];
+
+        for (line, expect) in EXAMPLE.iter().zip(expected) {
+            assert_eq!(line.parse::<Instruction>().unwrap(), expect);
         }
     }
 }
