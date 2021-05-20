@@ -21,9 +21,6 @@ struct RunArgs {
     /// run part 2
     #[structopt(long)]
     part2: bool,
-
-    #[structopt(long)]
-    list_decrypted: bool,
 }
 
 impl RunArgs {
