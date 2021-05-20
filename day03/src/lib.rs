@@ -19,19 +19,14 @@
 use aoclib::parse;
 use std::path::Path;
 
-// this should be a tuple struct, but we're running in to a parse_display limitation
 #[derive(Debug, parse_display::Display, parse_display::FromStr)]
-#[display("{a} {b} {c}")]
-#[from_str(regex = r"(?P<a>\d+)\s+(?P<b>\d+)\s+(?P<c>\d+)")]
-struct Triangle {
-    a: u64,
-    b: u64,
-    c: u64,
-}
+#[display("{0:>3} {1:>3} {2:>3}")]
+#[from_str(regex = r"(?P<0>\d+)\s+(?P<1>\d+)\s+(?P<2>\d+)")]
+struct Triangle(u64, u64, u64);
 
 impl Triangle {
     fn as_array(&self) -> [u64; 3] {
-        [self.a, self.b, self.c]
+        [self.0, self.1, self.2]
     }
 
     fn is_possible(&self) -> bool {
@@ -44,7 +39,7 @@ impl Triangle {
 #[cfg(test)]
 impl From<[u64; 3]> for Triangle {
     fn from([a, b, c]: [u64; 3]) -> Self {
-        Triangle { a, b, c }
+        Triangle(a, b, c)
     }
 }
 
@@ -52,11 +47,11 @@ fn reorient(triangles: &[Triangle]) -> Vec<Triangle> {
     let mut vertical = Vec::with_capacity(triangles.len());
     for block in triangles.chunks_exact(3) {
         for vertical_idx in 0..3 {
-            vertical.push(Triangle {
-                a: block[0].as_array()[vertical_idx],
-                b: block[1].as_array()[vertical_idx],
-                c: block[2].as_array()[vertical_idx],
-            });
+            vertical.push(Triangle(
+                block[0].as_array()[vertical_idx],
+                block[1].as_array()[vertical_idx],
+                block[2].as_array()[vertical_idx],
+            ));
         }
     }
     vertical
