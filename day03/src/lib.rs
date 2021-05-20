@@ -31,7 +31,7 @@ impl Triangle {
 
     fn is_possible(&self) -> bool {
         let mut array = self.as_array();
-        array.sort();
+        array.sort_unstable();
         array[0] + array[1] > array[2]
     }
 }
