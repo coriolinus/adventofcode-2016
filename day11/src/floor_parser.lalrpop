@@ -1,0 +1,31 @@
+use std::{
+    collections::HashSet,
+    str::FromStr,
+};
+use crate::{Element, Gadget, Device, Floor, FloorId};
+use maplit::hashset;
+
+grammar;
+
+match {
+    r"(first|second|third|fourth)" => FLOOR_ID,
+} else {
+    r"[a-z]+" => WORD,
+    _
+}
+
+FloorId: FloorId = <FLOOR_ID> => FloorId::from_str(<>).unwrap();
+Ident: FloorId = "The" <FloorId> "floor contains" => <>;
+
+Element: Element = <WORD> =>? Element::from_str(<>).map_err(|_| "failed to parse element".into());
+Gadget: Gadget = <WORD> =>? Gadget::from_str(<>).map_err(|_| "failed to parse gadget".into());
+
+Device: Device = <element:Element> "-compatible"? <gadget:Gadget> => Device {<>};
+
+DeviceSet: HashSet<Device> = {
+    "nothing relevant" => HashSet::new(),
+    "a" <device:Device> => hashset!{device},
+    <mut set:DeviceSet> ","? "and"? "a" <device:Device> => {set.insert(device); set},
+};
+
+pub Floor: Floor = <id:Ident> <contents:DeviceSet> "." => Floor {<>};
