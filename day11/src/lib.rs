@@ -1,3 +1,5 @@
+use std::collections::{HashSet, VecDeque};
+
 mod device;
 mod element;
 mod floor;
@@ -6,64 +8,52 @@ mod state;
 
 pub(crate) use {device::Device, element::Element, floor::Floor, gadget::Gadget, state::State};
 
-pub fn goalseek(initial: State) -> Option<u32> {
-    // the subsequent code is way too complicated and should not be considered trustworthy
-    unimplemented!()
+pub fn breadth_first_search(initial: State) -> Result<State, Error> {
+    let mut visited = HashSet::new();
+    let mut queue = VecDeque::new();
+    queue.push_front(initial);
 
-    // let mut visited = HashSet::new();
-    // let mut queue = VecDeque::new();
-    // queue.push_front((0, initial));
+    while let Some(state) = queue.pop_front() {
+        if visited.contains(&state) {
+            continue;
+        }
 
-    // let mut nsteps = 0;
-    // let mut count = 0;
+        if state.is_goal() {
+            return Ok(state);
+        }
 
-    // while let Some((steps, state)) = queue.pop_front() {
-    //     if steps == nsteps {
-    //         count += 1;
-    //     } else {
-    //         println!("visited {} states with {} steps", count, nsteps);
-    //         nsteps = steps;
-    //         count = 0;
-    //     }
+        for child in state.children(&visited) {
+            queue.push_back(child);
+        }
 
-    //     if state.is_goal() {
-    //         println!("{}", state);
-    //         return Some(steps);
-    //     }
+        visited.insert(state);
+    }
 
-    //     visited.insert(state.isomorph());
-
-    //     for child in state.next(&visited) {
-    //         queue.push_back((steps + 1, child));
-    //     }
-    // }
-
-    // None
+    Err(Error::NoSolution)
 }
 
 pub fn input() -> State {
     use Element::*;
-    use Gadget::*;
 
     let mut s = State::default();
 
-    s.add_device(0, Device::new(Promethium, Generator));
-    s.add_device(0, Device::new(Promethium, Microchip));
-    s.add_device(1, Device::new(Cobalt, Generator));
-    s.add_device(1, Device::new(Curium, Generator));
-    s.add_device(1, Device::new(Ruthenium, Generator));
-    s.add_device(1, Device::new(Plutonium, Generator));
-    s.add_device(2, Device::new(Cobalt, Microchip));
-    s.add_device(2, Device::new(Curium, Microchip));
-    s.add_device(2, Device::new(Ruthenium, Microchip));
-    s.add_device(2, Device::new(Plutonium, Microchip));
+    s.add_device(0, Device::generator(Promethium));
+    s.add_device(0, Device::microchip(Promethium));
+    s.add_device(1, Device::generator(Cobalt));
+    s.add_device(1, Device::generator(Curium));
+    s.add_device(1, Device::generator(Ruthenium));
+    s.add_device(1, Device::generator(Plutonium));
+    s.add_device(2, Device::microchip(Cobalt));
+    s.add_device(2, Device::microchip(Curium));
+    s.add_device(2, Device::microchip(Ruthenium));
+    s.add_device(2, Device::microchip(Plutonium));
 
     s
 }
 
 pub fn part1() -> Result<(), Error> {
     let state = input();
-    let steps = goalseek(state).ok_or(Error::NoSolution)?;
+    let steps = breadth_first_search(state)?.steps();
     println!("found solution in {} steps", steps);
     Ok(())
 }
@@ -86,19 +76,29 @@ mod tests {
 
     fn example() -> State {
         use Element::*;
-        use Gadget::*;
 
         let mut s = State::default();
-        s.add_device(0, Device::new(Hydrogen, Microchip));
-        s.add_device(0, Device::new(Lithium, Microchip));
-        s.add_device(1, Device::new(Hydrogen, Generator));
-        s.add_device(2, Device::new(Lithium, Generator));
+        s.add_device(0, Device::microchip(Hydrogen));
+        s.add_device(0, Device::microchip(Lithium));
+        s.add_device(1, Device::generator(Hydrogen));
+        s.add_device(2, Device::generator(Lithium));
 
         s
     }
 
+    fn show_path_to(state: &State) {
+        if let Some(parent) = state.parent() {
+            show_path_to(parent);
+        }
+
+        println!("{}:", state.steps());
+        println!("{}", state);
+    }
+
     #[test]
     fn test_example() {
-        assert_eq!(Some(11), goalseek(example()));
+        let goal = breadth_first_search(example()).unwrap();
+        show_path_to(&goal);
+        assert_eq!(goal.steps(), 11);
     }
 }

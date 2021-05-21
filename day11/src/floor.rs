@@ -9,12 +9,14 @@ pub struct Floor {
 }
 
 impl Floor {
-    /// A floor is safe if it contains no generators without a corresponding microchip.
+    /// A floor is safe if there are no generators or every microchip is accompanied by its generator
     pub fn is_safe(&self) -> bool {
-        self.generators
-            .difference(&self.microchips)
-            .next()
-            .is_none()
+        self.generators.is_empty()
+            || self
+                .microchips
+                .difference(&self.generators)
+                .next()
+                .is_none()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -31,10 +33,14 @@ impl Floor {
 
     pub fn rm_device(&mut self, device: Device) {
         use Gadget::*;
-        match device.gadget {
+        let was_present = match device.gadget {
             Generator => self.generators.remove(&device.element),
             Microchip => self.microchips.remove(&device.element),
         };
+        // It is a logic error to remove a device which wasn't already
+        // present, because removing an item is always followed by
+        // inserting it on a neighboring floor.
+        debug_assert!(was_present);
     }
 
     pub fn generators(&self) -> impl '_ + Iterator<Item = Device> + Clone {

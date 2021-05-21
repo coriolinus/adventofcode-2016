@@ -1,22 +1,26 @@
 use crate::{Device, Floor};
+use itertools::Itertools;
 use std::{
+    array,
+    borrow::Borrow,
     collections::HashSet,
     fmt,
     hash::{Hash, Hasher},
+    ops::{Index, IndexMut},
     rc::Rc,
 };
 
 pub const FLOORS: usize = 4;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Eq)]
 pub struct State {
     parent: Option<Rc<State>>,
     elevator: u8,
     floors: [Floor; FLOORS],
 }
 
-// `State` is not `Eq` because we ignore their parent when checking for equality.
-// For the same reason, we need to manually implement `PartialEq` and `Hash`.
+// Because we want to ignore the parent and only check isomorphism,
+// we need to manually implement `PartialEq` and `Hash`.
 
 impl PartialEq for State {
     fn eq(&self, other: &Self) -> bool {
@@ -31,9 +35,27 @@ impl Hash for State {
     }
 }
 
+impl Index<u8> for State {
+    type Output = Floor;
+
+    fn index(&self, index: u8) -> &Self::Output {
+        &self.floors[index as usize]
+    }
+}
+
+impl IndexMut<u8> for State {
+    fn index_mut(&mut self, index: u8) -> &mut Self::Output {
+        &mut self.floors[index as usize]
+    }
+}
+
 impl State {
-    fn current_floor(&self) -> &Floor {
-        &self.floors[self.elevator as usize]
+    pub fn parent(&self) -> Option<&State> {
+        self.parent.as_ref().map(|rc| rc.borrow())
+    }
+
+    fn floors_below(&self) -> impl Iterator<Item = &Floor> {
+        (0..(self.elevator as usize)).map(move |floor| &self.floors[floor])
     }
 
     pub fn is_safe(&self) -> bool {
@@ -51,95 +73,113 @@ impl State {
     }
 
     pub fn steps(&self) -> usize {
-        if let Some(ref state) = self.parent {
-            1 + state.steps()
+        if let Some(ref parent) = self.parent {
+            1 + parent.steps()
         } else {
             0
         }
     }
 
-    pub fn next(&self, visited: &HashSet<State>) -> Vec<State> {
-        // the subsequent code is way too complicated and should not be considered trustworthy
-        unimplemented!()
+    // Compute all reasonable children of this state.
+    //
+    // Follows these rules:
+    //
+    // - don't include unsafe children
+    // - if all floors below the current floor are empty, don't move anything down
+    // - if possible to move a pair upstairs, don't bother bringing single items upstairs
+    // - if possible to move a single item downstairs, don't bother bringing pairs downstairs
+    // - exclude child states isomorphic to visited states
+    pub fn children(&self, visited: &HashSet<State>) -> Vec<State> {
+        let parent = Some(Rc::new(self.clone()));
+        let mut children = Vec::new();
 
-        // let mut out = Vec::new();
-        // let devices = self.floors[self.elevator].devices();
+        let pairs = self[self.elevator]
+            .devices()
+            .cartesian_product(self[self.elevator].devices())
+            .filter(|(a, b)| a != b);
 
-        // let heapself = Rc::new(self.clone());
-        // let child = || {
-        //     let mut c = self.clone();
-        //     c.parent = Some(heapself.clone());
-        //     c
-        // };
+        // consider moving pairs or single items upstairs
+        if (self.elevator as usize) < FLOORS - 1 {
+            let mut moved_pair = false;
 
-        // if self.elevator < (FLOORS - 1) {
-        //     let mut took_two_up = false;
+            let make_child = || State {
+                parent: parent.clone(),
+                elevator: self.elevator + 1,
+                floors: self.floors.clone(),
+            };
+            let move_device = |child: &mut State, device| {
+                child[self.elevator].rm_device(device);
+                child[self.elevator + 1].add_device(device);
+            };
 
-        //     // for each pair of devices, take them up one floor (if possible)
-        //     for (d1, d2) in devices.clone().tuple_combinations() {
-        //         let mut next = child();
-        //         next.elevator += 1;
-        //         next.floors[self.elevator].rm_device(*d1);
-        //         next.floors[self.elevator].rm_device(*d2);
-        //         next.floors[next.elevator].add_device(*d1);
-        //         next.floors[next.elevator].add_device(*d2);
-        //         if next.is_safe() && !visited.contains(&next.isomorph()) {
-        //             out.push(next);
-        //             took_two_up = true;
-        //         }
-        //     }
+            for (a, b) in pairs.clone() {
+                let mut child = make_child();
+                for device in array::IntoIter::new([a, b]) {
+                    move_device(&mut child, device);
+                }
+                if !visited.contains(&child) && child.is_safe() {
+                    children.push(child);
+                    moved_pair = true;
+                }
+            }
 
-        //     // only take one thing upstairs if we can't take two things upstairs
-        //     if !took_two_up {
-        //         // for each device, take it up one floor (if possible)
-        //         for d in devices {
-        //             let mut next = child();
-        //             next.elevator += 1;
-        //             next.floors[self.elevator].rm_device(*d);
-        //             next.floors[next.elevator].add_device(*d);
-        //             if next.is_safe() && !visited.contains(&next.isomorph()) {
-        //                 out.push(next);
-        //             }
-        //         }
-        //     }
-        // }
-        // if self.elevator > 0
-        //     && self.floors[..self.elevator]
-        //         .iter()
-        //         .any(|floor| !floor.is_empty())
-        // {
-        //     let mut took_one_down = false;
+            // only move single items up if we didn't manage to move a pair
+            if !moved_pair {
+                for device in self[self.elevator].devices() {
+                    let mut child = make_child();
+                    move_device(&mut child, device);
 
-        //     // for each device, take it down one floor (if possible)
-        //     for d in devices.iter() {
-        //         let mut next = child();
-        //         next.elevator -= 1;
-        //         next.floors[self.elevator].rm_device(*d);
-        //         next.floors[next.elevator].add_device(*d);
-        //         if next.is_safe() && !visited.contains(&next.isomorph()) {
-        //             out.push(next);
-        //             took_one_down = true;
-        //         }
-        //     }
+                    if !visited.contains(&child) && child.is_safe() {
+                        children.push(child);
+                    }
+                }
+            }
+        }
 
-        //     // only take two down if we can't take one down
-        //     if !took_one_down {
-        //         // for each pair of devices, take them down one floor (if possible)
-        //         for (d1, d2) in devices.iter().tuple_combinations() {
-        //             let mut next = child();
-        //             next.elevator -= 1;
-        //             next.floors[self.elevator].rm_device(*d1);
-        //             next.floors[self.elevator].rm_device(*d2);
-        //             next.floors[next.elevator].add_device(*d1);
-        //             next.floors[next.elevator].add_device(*d2);
-        //             if next.is_safe() && !visited.contains(&next.isomorph()) {
-        //                 out.push(next);
-        //             }
-        //         }
-        //     }
-        // }
+        // consider moving single items or pairs downstairs
+        if self.elevator > 0
+            && !self
+                .floors_below()
+                .all(|floor| floor.devices().next().is_none())
+        {
+            let mut moved_single = false;
 
-        // out
+            let make_child = || State {
+                parent: parent.clone(),
+                elevator: self.elevator - 1,
+                floors: self.floors.clone(),
+            };
+            let move_device = |child: &mut State, device| {
+                child[self.elevator].rm_device(device);
+                child[self.elevator - 1].add_device(device);
+            };
+
+            for device in self[self.elevator].devices() {
+                let mut child = make_child();
+                move_device(&mut child, device);
+
+                if !visited.contains(&child) && child.is_safe() {
+                    children.push(child);
+                    moved_single = true;
+                }
+            }
+
+            // only move pairs down if we didn't manage to move a single
+            if !moved_single {
+                for (a, b) in pairs {
+                    let mut child = make_child();
+                    for device in array::IntoIter::new([a, b]) {
+                        move_device(&mut child, device);
+                    }
+
+                    if !visited.contains(&child) && child.is_safe() {
+                        children.push(child);
+                    }
+                }
+            }
+        }
+
+        children
     }
 
     /// Compute a single value corresponding to the distribution of devices among
@@ -166,7 +206,7 @@ impl fmt::Display for State {
             writeln!(
                 f,
                 "F{} {} {}",
-                floor,
+                floor + 1,
                 if self.elevator == floor as u8 {
                     'E'
                 } else {

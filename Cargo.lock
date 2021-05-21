@@ -475,6 +475,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "enum-iterator",
+ "itertools",
  "rand 0.8.3",
  "structopt",
  "thiserror",
