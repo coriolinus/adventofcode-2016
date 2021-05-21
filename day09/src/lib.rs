@@ -34,26 +34,26 @@
 //!
 //! What is the decompressed length of the file (your puzzle input)? Don't count whitespace.
 
+use aoclib::parse;
 use num_bigint::BigUint;
-
-use num_traits::Zero;
-use num_traits::cast::FromPrimitive;
+use num_traits::{cast::FromPrimitive, Zero};
+use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq)]
-enum State {
+pub enum State {
     Normal,
-    ParsingMarkerLength(String), // store WIP characters
-    ParsingMarkerCount(usize, String), // store the length, WIP characters
+    ParsingMarkerLength(String),         // store WIP characters
+    ParsingMarkerCount(usize, String),   // store the length, WIP characters
     ReadingMarked(usize, usize, String), // store length, count of repetitions, WIP chars
-    Error(&'static str), // error message
+    Error(&'static str),                 // error message
 }
 
 impl State {
-    /// Return the error message if this is an error state, or None otherwise
-    pub fn error(&self) -> Option<&'static str> {
-        match *self {
-            State::Error(msg) => Some(msg),
-            _ => None,
+    /// If the state is an error, return it
+    pub fn check_error(&self) -> Result<(), Error> {
+        match self {
+            Self::Error(err) => Err(Error::DecompressionError(err)),
+            _ => Ok(())
         }
     }
 }
@@ -67,9 +67,6 @@ impl Default for State {
 // Given an input character and the current state, return the subsequent state
 // and optionally an output character to write.
 fn handle_char(state: State, input: char) -> (State, Option<String>) {
-    #[cfg(feature="debug_output")]
-    println!("handle_char({:?}, {})", state, input);
-
     use State::*;
     match state {
         Normal => {
@@ -87,7 +84,10 @@ fn handle_char(state: State, input: char) -> (State, Option<String>) {
                 if let Ok(length) = wip.parse::<usize>() {
                     (ParsingMarkerCount(length, String::new()), None)
                 } else {
-                    (Error("Could not parse marker length"), Some(input.to_string()))
+                    (
+                        Error("Could not parse marker length"),
+                        Some(input.to_string()),
+                    )
                 }
             }
         }
@@ -122,26 +122,19 @@ fn handle_char(state: State, input: char) -> (State, Option<String>) {
                 (new_state, Some(output))
             }
         }
-        error @ Error(_) => (error, Some(input.to_string())),
+        Error(_) => (state, Some(input.to_string())),
     }
 }
 
-
 /// Decompress the given input according to Santa Rules
-pub fn decompress(input: &str) -> Option<String> {
+pub fn decompress(input: &str) -> Result<String, Error> {
     let mut state = State::default();
     let mut output = String::with_capacity(input.len());
 
     for ch in input.chars() {
         let result_tuple = handle_char(state, ch);
         state = result_tuple.0;
-
-
-        if let Some(errmsg) = state.error() {
-            println!("Error while decompressing: {}", errmsg);
-            println!("Buffer: {}", output);
-            return None;
-        }
+        state.check_error()?;
 
         if let Some(intermediate) = result_tuple.1 {
             output.push_str(&intermediate);
@@ -158,31 +151,34 @@ pub fn decompress(input: &str) -> Option<String> {
         }
         // normal state is also fine
         State::Normal => {}
-        // anything else is probably an error
-        _ => return None,
+        // anything else is an error
+        state => return Err(Error::UnexpectedState(state)),
     }
-    Some(output)
+    Ok(output)
 }
 
-fn parse_marker<I>(input: &mut I) -> Option<(usize, usize, usize)>
-    where I: Iterator<Item = (usize, char)>
+fn parse_marker<I>(input: &mut I) -> Result<(usize, usize, usize), Error>
+where
+    I: Iterator<Item = (usize, char)>,
 {
-    let length = input.by_ref()
+    let length_str = input
+        .by_ref()
         .map(|(_, c)| c)
         .take_while(|c| *c != 'x')
-        .collect::<String>()
+        .collect::<String>();
+    let length = length_str
         .parse::<usize>();
-    let (index, count): (Vec<usize>, String) =
+    let (index, count_str): (Vec<usize>, String) =
         input.by_ref().take_while(|&(_, c)| c != ')').unzip();
     // index is last updated on the character preceding the close paren.
     // What we want to return is the index of the close paren
     // Therefore, simply add one.
     let index = *index.last().unwrap() + 1;
-    let count = count.parse::<usize>();
+    let count = count_str.parse::<usize>();
 
     match (length, count) {
-        (Ok(length), Ok(count)) => Some((index, length, count)),
-        _ => None,
+        (Ok(length), Ok(count)) => Ok((index, length, count)),
+        _ => Err(Error::ParseMarker(format!("({}x{})", length_str, count_str))),
     }
 }
 
@@ -214,13 +210,14 @@ fn parse_marker<I>(input: &mut I) -> Option<(usize, usize, usize)>
 ///
 /// The next three characters, 11-13, have both multipliers applied, for a total multiplicand
 /// of 6. Finally, both multipliers expire, so the final character as position 14 is applied once.
-pub fn count_decompressed_v2<I>(input: &mut I) -> Option<BigUint>
-    where I: Iterator<Item = char>
+pub fn count_decompressed_v2<I>(input: &mut I) -> Result<BigUint, Error>
+where
+    I: Iterator<Item = char>,
 {
     let mut multipliers: Vec<(usize, usize)> = Vec::new(); // (until, multiplicand)
-    let mut multiplicand; // we'll initialize it in the loop, later
     let mut total: BigUint = Zero::zero();
 
+    // not a for loop because we need to explicitly advance the input in `parse_marker`, within the loop
     let mut enumerated = input.enumerate();
     while let Some((index, ch)) = enumerated.next() {
         // first, add all appropriate counts
@@ -228,48 +225,54 @@ pub fn count_decompressed_v2<I>(input: &mut I) -> Option<BigUint>
 
         // if this was an open paren, parse that
         if ch == '(' {
-            if let Some((index, length, count)) = parse_marker(&mut enumerated.by_ref()) {
-                #[cfg(feature="debug_output")]
-                println!("Parsed marker as ({}x{}); index {} => until {}",
-                         length,
-                         count,
-                         index,
-                         (index + length));
-
-                multipliers.push((index + length, count));
-            } else {
-                return None;
-            }
-            // The following assignment is only ever read if we're emitting debug output,
-            #[cfg(feature="debug_output")]
-            {
-                multiplicand = 0;
-            }
+            let (index, length, count) = parse_marker(&mut enumerated.by_ref())?;
+            multipliers.push((index + length, count));
         } else {
-            multiplicand = multipliers.iter()
+            let multiplicand = multipliers
+                .iter()
                 .map(|&(_, multiplicand)| multiplicand as u64)
                 .product();
             total = total + BigUint::from_u64(multiplicand).unwrap();
         }
-
-        #[cfg(feature="debug_output")]
-        println!("{}: '{}' * {} ({:?}) => {}",
-                 index,
-                 ch,
-                 multiplicand,
-                 multipliers,
-                 total);
     }
-    Some(total)
+    Ok(total)
+}
+
+pub fn part1(path: &Path) -> Result<(), Error> {
+    for input in parse::<String>(path)? {
+        let decompressed = decompress(&input)?;
+        println!("decompressed len: {}", decompressed.len());
+    }
+    Ok(())
+}
+
+pub fn part2(path: &Path) -> Result<(), Error> {
+    for input in parse::<String>(path)? {
+        let decompressed_len = count_decompressed_v2(&mut input.chars())?;
+        println!("decompressed len (v2): {}", decompressed_len);
+    }
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("{0}")]
+    DecompressionError(&'static str),
+    #[error("state machine terminated in unexpected state: {0:?}")]
+    UnexpectedState(State),
+    #[error("failed to parse as marker: \"{0}\"")]
+    ParseMarker(String),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-        use num_bigint::BigUint;
+    use num_bigint::BigUint;
 
-        use num_traits::cast::FromPrimitive;
+    use num_traits::cast::FromPrimitive;
 
     fn get_examples() -> Vec<&'static str> {
         vec![
@@ -293,13 +296,16 @@ mod tests {
             "X(3x3)ABC(3x3)ABCY",
         ];
 
-        for (case, expect) in get_examples().iter().zip(expected.iter().map(|s| s.to_string())) {
+        for (case, expect) in get_examples()
+            .iter()
+            .zip(expected.iter().map(|s| s.to_string()))
+        {
             let decompressed = decompress(case);
-            println!("Case '{}' -> Expect '{}', Found {:?}",
-                     case,
-                     expect,
-                     decompressed);
-            assert!(decompressed == Some(expect));
+            println!(
+                "Case '{}' -> Expect '{}', Found {:?}",
+                case, expect, decompressed
+            );
+            assert_eq!(decompressed.unwrap(), expect);
         }
     }
 
@@ -309,13 +315,16 @@ mod tests {
             ("(3x3)XYZ", 9),
             ("X(8x2)(3x3)ABCY", 20),
             ("(27x12)(20x12)(13x14)(7x10)(1x12)A", 241920),
-            ("(25x3)(3x3)ABC(2x3)XY(5x2)PQRSTX(18x9)(3x2)TWO(5x7)SEVEN", 445),
+            (
+                "(25x3)(3x3)ABC(2x3)XY(5x2)PQRSTX(18x9)(3x2)TWO(5x7)SEVEN",
+                445,
+            ),
         ];
         for (case, ex_len) in expected {
             println!("Decompressing: {}", case);
             let length = count_decompressed_v2(&mut case.chars());
             println!("Case '{}' -> Expect '{}', Found {:?}", case, ex_len, length);
-            assert!(length == Some(BigUint::from_u64(ex_len).unwrap()));
+            assert_eq!(length.unwrap(), BigUint::from_u64(ex_len).unwrap());
         }
     }
 }
