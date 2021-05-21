@@ -51,15 +51,33 @@ pub fn input() -> State {
     s
 }
 
+pub fn input_part2() -> State {
+    use Element::*;
+
+    let mut s = input();
+
+    // here Hydrogen stands in for Elerium
+    s.add_device(0, Device::generator(Hydrogen));
+    s.add_device(0, Device::microchip(Hydrogen));
+    // here Lithium stands in for Dilithium
+    s.add_device(0, Device::generator(Lithium));
+    s.add_device(0, Device::microchip(Lithium));
+
+    s
+}
+
 pub fn part1() -> Result<(), Error> {
     let state = input();
     let steps = breadth_first_search(state)?.steps();
-    println!("found solution in {} steps", steps);
+    println!("part1 solution in {} steps", steps);
     Ok(())
 }
 
 pub fn part2() -> Result<(), Error> {
-    unimplemented!()
+    let state = input_part2();
+    let steps = breadth_first_search(state)?.steps();
+    println!("part2 solution in {} steps", steps);
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
