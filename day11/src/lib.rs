@@ -183,9 +183,10 @@ impl State {
                 }
             }
         }
-        if self.elevator > 0 && self.floors[..self.elevator]
-            .iter()
-            .any(|floor| !floor.is_empty())
+        if self.elevator > 0
+            && self.floors[..self.elevator]
+                .iter()
+                .any(|floor| !floor.is_empty())
         {
             let mut took_one_down = false;
 
@@ -342,6 +343,25 @@ pub fn input() -> State {
     s.add_device(2, Device::new(Plutonium, Microchip));
 
     s
+}
+
+pub fn part1() -> Result<(), Error> {
+    let state = input();
+    let steps = goalseek(state).ok_or(Error::NoSolution)?;
+    println!("found solution in {} steps", steps);
+    Ok(())
+}
+
+pub fn part2() -> Result<(), Error> {
+    unimplemented!()
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("could not determine a solution")]
+    NoSolution,
 }
 
 #[cfg(test)]
