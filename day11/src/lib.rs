@@ -98,43 +98,6 @@ mod tests {
     }
 
     #[test]
-    fn test_simple_isomorph_equivalence() {
-        use Element::*;
-        use Gadget::*;
-
-        let mut s1 = State::default();
-        let mut s2 = State::default();
-
-        assert_eq!(s1.isomorph(), s2.isomorph());
-
-        s1.add_device(0, Device::new(Hydrogen, Microchip));
-        s2.add_device(0, Device::new(Lithium, Microchip));
-        assert_eq!(s1.isomorph(), s2.isomorph());
-
-        s1.add_device(1, Device::new(Hydrogen, Generator));
-        s2.add_device(1, Device::new(Lithium, Generator));
-        assert_eq!(s1.isomorph(), s2.isomorph());
-    }
-
-    #[test]
-    fn test_isomorph_equivalence() {
-        let equiv = {
-            use Element::*;
-            use Gadget::*;
-
-            let mut s = State::default();
-            s.add_device(0, Device::new(Plutonium, Microchip));
-            s.add_device(0, Device::new(Cobalt, Microchip));
-            s.add_device(1, Device::new(Plutonium, Generator));
-            s.add_device(2, Device::new(Cobalt, Generator));
-
-            s
-        };
-
-        assert_eq!(example().isomorph(), equiv.isomorph());
-    }
-
-    #[test]
     fn test_example() {
         assert_eq!(Some(11), goalseek(example()));
     }

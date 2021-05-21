@@ -1,6 +1,9 @@
+#[cfg(test)]
+use enum_iterator::IntoEnumIterator;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(test, derive(IntoEnumIterator))]
 pub enum Element {
     Cobalt,
     Curium,

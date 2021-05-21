@@ -1,20 +1,41 @@
-use crate::{Device, Element, Floor};
-use std::{collections::HashSet, fmt, rc::Rc};
+use crate::{Device, Floor};
+use std::{
+    collections::HashSet,
+    fmt,
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
 pub const FLOORS: usize = 4;
 
-/// an Isomorph is a value which corresponds to a given state, regardless of
-/// which particular elements are where.
-pub type Isomorph = u64;
-
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone)]
 pub struct State {
     parent: Option<Rc<State>>,
-    elevator: usize,
+    elevator: u8,
     floors: [Floor; FLOORS],
 }
 
+// `State` is not `Eq` because we ignore their parent when checking for equality.
+// For the same reason, we need to manually implement `PartialEq` and `Hash`.
+
+impl PartialEq for State {
+    fn eq(&self, other: &Self) -> bool {
+        self.elevator == other.elevator && self.isomorph() == other.isomorph()
+    }
+}
+
+impl Hash for State {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        hasher.write_u8(self.elevator);
+        hasher.write_u64(self.isomorph());
+    }
+}
+
 impl State {
+    fn current_floor(&self) -> &Floor {
+        &self.floors[self.elevator as usize]
+    }
+
     pub fn is_safe(&self) -> bool {
         self.floors.iter().all(|floor| floor.is_safe())
     }
@@ -37,7 +58,7 @@ impl State {
         }
     }
 
-    pub fn next(&self, visited: &HashSet<Isomorph>) -> Vec<State> {
+    pub fn next(&self, visited: &HashSet<State>) -> Vec<State> {
         // the subsequent code is way too complicated and should not be considered trustworthy
         unimplemented!()
 
@@ -121,55 +142,20 @@ impl State {
         // out
     }
 
-    fn isomorph(&self) -> Isomorph {
-        // abandon generality all ye who enter here!
-        //
-        // most of the rest of this code just works no matter how many floors
-        // or how many elements are present. However, this function is strictly
-        // limited to 4 floors and 8 elements. This suffices for part 1 of the
-        // problem; hopefully it does as well for part 2.
-
-        // we segment the 64 bits of Isomorph into four 16-bit sequences, one
-        // per floor. Of those 16 bits, the low 8 identify the potential presence
-        // of up to 8 microchips; the high 8 identify the potential presence
-        // of up to 8 generators.
-        //
-        // This is key: there is no fixed mapping between an element and the
-        // isomorph position used to represent it. Instead, the first element
-        // encountered gets index 0, the next one index 1, etc.
-
-        let mut encountered_elements = [None; 8];
-        let mut next_ee_idx = 0;
-        let mut isomorph = 0;
-
-        let mut element_index = |element: Element| match encountered_elements
+    /// Compute a single value corresponding to the distribution of devices among
+    /// the floors of this state.
+    ///
+    /// This intentially erases the distinction between different elements; the only
+    /// information of interest are the numbers of unpaired generators,
+    fn isomorph(&self) -> u64 {
+        let isomorph = self
+            .floors
             .iter()
             .enumerate()
-            .find(|(_, &ee)| ee == Some(element))
-        {
-            None => {
-                let idx = next_ee_idx;
-                if idx >= 8 {
-                    panic!("too many elements discovered")
-                }
-                next_ee_idx += 1;
-                encountered_elements[idx] = Some(element);
-                idx
-            }
-            Some((idx, _)) => idx,
-        };
-
-        for (floor_idx, floor) in self.floors.iter().enumerate() {
-            for g_el in floor.generators.iter() {
-                let offset = (16 * floor_idx) + 8 + element_index(*g_el);
-                isomorph |= 1 << offset;
-            }
-            for m_el in floor.microchips.iter() {
-                let offset = (16 * floor_idx) + element_index(*m_el);
-                isomorph |= 1 << offset;
-            }
-        }
-
+            .map(|(idx, floor)| floor.isomorph() << (idx * 64 / FLOORS))
+            .fold(0, |acc, elem| acc | elem);
+        // 12 bits per floor isomorph; 4 floors
+        debug_assert_eq!(isomorph & !0x0fff_0fff_0fff_0fff, 0);
         isomorph
     }
 }
@@ -177,17 +163,81 @@ impl State {
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for floor in (0..FLOORS).rev() {
-            write!(
+            writeln!(
                 f,
-                "F{} {} ",
+                "F{} {} {}",
                 floor,
-                if self.elevator == floor { 'E' } else { '.' }
+                if self.elevator == floor as u8 {
+                    'E'
+                } else {
+                    '|'
+                },
+                self.floors[floor],
             )?;
-            for device in self.floors[floor].devices() {
-                write!(f, "{:?} ", device)?;
-            }
-            write!(f, "\n")?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod isomorph_tests {
+    use super::*;
+    use crate::{floor::isomorph_tests::exhaustive_floors, Element::*};
+
+    fn example() -> State {
+        let mut s = State::default();
+        s.add_device(0, Device::microchip(Hydrogen));
+        s.add_device(0, Device::microchip(Lithium));
+        s.add_device(1, Device::generator(Hydrogen));
+        s.add_device(2, Device::generator(Lithium));
+
+        s
+    }
+
+    #[test]
+    fn test_simple_isomorph_equivalence() {
+        let mut s1 = State::default();
+        let mut s2 = State::default();
+
+        assert_eq!(s1.isomorph(), s2.isomorph());
+
+        s1.add_device(0, Device::microchip(Hydrogen));
+        s2.add_device(0, Device::microchip(Lithium));
+        assert_eq!(s1.isomorph(), s2.isomorph());
+
+        s1.add_device(1, Device::generator(Hydrogen));
+        s2.add_device(1, Device::generator(Lithium));
+        assert_eq!(s1.isomorph(), s2.isomorph());
+    }
+
+    #[test]
+    fn test_isomorph_equivalence() {
+        let equiv = {
+            let mut s = State::default();
+            s.add_device(0, Device::microchip(Plutonium));
+            s.add_device(0, Device::microchip(Cobalt));
+            s.add_device(1, Device::generator(Plutonium));
+            s.add_device(2, Device::generator(Cobalt));
+
+            s
+        };
+
+        assert_eq!(example().isomorph(), equiv.isomorph());
+    }
+
+    #[test]
+    fn test_floor_deconfliction() {
+        for floor_idx in 0..FLOORS {
+            for floor in exhaustive_floors() {
+                let floor_isomorph = floor.isomorph();
+
+                let mut s = State::default();
+                s.floors[floor_idx] = floor;
+
+                let shift = floor_idx * 16;
+                assert_eq!(s.isomorph() & !(0xfff << shift), 0);
+                assert_eq!(s.isomorph(), floor_isomorph << shift);
+            }
+        }
     }
 }
