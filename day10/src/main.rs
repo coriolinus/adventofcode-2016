@@ -1,27 +1,53 @@
-use util::get_lines;
-use day10::{parse_lines, process, find_bot_handling};
+use aoclib::{config::Config, website::get_input};
+use day10::{part1, part2};
 
-fn main() {
-    println!("Enter instructions:");
-    let lines = get_lines();
-    if let Some(instructions) = parse_lines(&lines) {
-        if let Ok((bots, outputs)) = process(instructions) {
-            if let Some(bot) = find_bot_handling(&bots, 61, 17) {
-                println!("Bot {} handles 61, 17", bot);
-            } else {
-                println!("Couldn't find bot handling 61, 17");
+use color_eyre::eyre::Result;
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+const YEAR: u32 = 2016;
+const DAY: u8 = 10;
+
+#[derive(StructOpt, Debug)]
+struct RunArgs {
+    /// input file
+    #[structopt(long, parse(from_os_str))]
+    input: Option<PathBuf>,
+
+    /// skip part 1
+    #[structopt(long)]
+    no_part1: bool,
+
+    /// run part 2
+    #[structopt(long)]
+    part2: bool,
+}
+
+impl RunArgs {
+    fn input(&self) -> Result<PathBuf> {
+        match self.input {
+            None => {
+                let config = Config::load()?;
+                // this does nothing if the input file already exists, but
+                // simplifies the workflow after cloning the repo on a new computer
+                get_input(&config, YEAR, DAY)?;
+                Ok(config.input_for(YEAR, DAY))
             }
-
-            let zero = outputs.get(&0).unwrap().iter().next().unwrap();
-            let one = outputs.get(&1).unwrap().iter().next().unwrap();
-            let two = outputs.get(&2).unwrap().iter().next().unwrap();
-
-            let product = zero * one * two;
-            println!("Product of bins [0]*[1]*[2]={}", product);
-        } else {
-            println!("Failed to process instructions");
+            Some(ref path) => Ok(path.clone()),
         }
-    } else {
-        println!("Could not parse input instructions");
     }
+}
+
+fn main() -> Result<()> {
+    color_eyre::install()?;
+    let args = RunArgs::from_args();
+    let input_path = args.input()?;
+
+    if !args.no_part1 {
+        part1(&input_path)?;
+    }
+    if args.part2 {
+        part2(&input_path)?;
+    }
+    Ok(())
 }

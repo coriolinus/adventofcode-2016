@@ -43,169 +43,152 @@
 //! Based on your instructions, what is the number of the bot that is responsible for
 //! comparing value-61 microchips with value-17 microchips?
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use aoclib::parse;
+use std::{
+    array,
+    collections::{hash_map::Entry, HashMap, VecDeque},
+    path::Path,
+};
 
-mod parser;
-pub use parser::parse_Inst as parse_inst;
+// These typedefs aren't type-safe with each other, but they still
+// make it easier to read the code.
+pub type Id = u32;
+pub type Value = u32;
+pub type Bots = HashMap<Id, Bot>;
+pub type Outputs = HashMap<Id, Value>;
 
 #[derive(Debug)]
-pub struct Output(usize);
-#[derive(Debug)]
+pub struct Output(Id);
+
+#[derive(Debug, Default, Clone)]
 pub struct Bot {
-    pub id: usize,
-    values: (Option<usize>, Option<usize>),
-    cache: Option<(usize, usize)>,
+    pub id: Id,
+    low: Option<Value>,
+    high: Option<Value>,
 }
 
-type BotInsertErr = String;
-
 impl Bot {
-    pub fn new(id: usize) -> Bot {
+    pub fn new(id: Id) -> Bot {
         Bot {
-            id: id,
-            values: (None, None),
-            cache: None,
+            id,
+            ..Bot::default()
         }
     }
 
     /// True if bot has two values
     pub fn is_full(&self) -> bool {
-        self.values.0.is_some() && self.values.1.is_some()
+        self.low.is_some() && self.high.is_some()
     }
 
     /// Add a result to this bot, or error if it's full
-    pub fn add_value(&mut self, value: usize) -> Result<(), BotInsertErr> {
-        self.values = match self.values {
-            (None, _) => (Some(value), None),
-            (Some(v1), None) => (Some(v1), Some(value)),
-            _ => {
-
-                return Err(format!("Can't insert value {} into bot {}; it's full",
-                                   value,
-                                   self.id));
+    pub fn add_value(&mut self, mut value: Value) -> Result<(), Error> {
+        if let Some(mut low) = self.low.take() {
+            if low > value {
+                std::mem::swap(&mut low, &mut value);
             }
-        };
-
-        if self.is_full() {
-            let v1 = self.values.0.unwrap();
-            let v2 = self.values.1.unwrap();
-
-            if v1 < v2 {
-                self.cache = Some((v1, v2));
-            } else {
-                self.cache = Some((v2, v1));
-            }
+            self.low = Some(low);
+            self.high = Some(value);
+        } else {
+            self.low = Some(value);
         }
 
         Ok(())
-    }
-
-    pub fn low(&self) -> Option<usize> {
-        self.cache.map(|(l, _)| l)
-    }
-
-    pub fn high(&self) -> Option<usize> {
-        self.cache.map(|(_, h)| h)
     }
 }
 
 /// A Receiver is a Bot or an Output: it can receive items.
 ///
 /// In either case, it contains the ID of the destination item
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, parse_display::FromStr, parse_display::Display)]
 pub enum Receiver {
-    Bot(usize),
-    Output(usize),
+    #[display("bot {0}")]
+    Bot(Id),
+    #[display("output {0}")]
+    Output(Id),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, parse_display::FromStr, parse_display::Display)]
 pub enum Instruction {
-    Get { bot_id: usize, value: usize },
+    #[display("value {value} goes to bot {bot_id}")]
+    Get { bot_id: Id, value: Value },
+    #[display("bot {bot_id} gives low to {low_dest} and high to {high_dest}")]
     Transfer {
-        bot_id: usize,
+        bot_id: Id,
         low_dest: Receiver,
         high_dest: Receiver,
     },
 }
 
 impl Instruction {
-    pub fn get(bot_id: usize, value: usize) -> Instruction {
-        Instruction::Get {
-            bot_id: bot_id,
-            value: value,
-        }
+    pub const fn get(bot_id: Id, value: Value) -> Instruction {
+        Instruction::Get { bot_id, value }
     }
 
-    pub fn transfer(bot_id: usize, low_dest: Receiver, high_dest: Receiver) -> Instruction {
+    pub const fn transfer(bot_id: Id, low_dest: Receiver, high_dest: Receiver) -> Instruction {
         Instruction::Transfer {
-            bot_id: bot_id,
-            low_dest: low_dest,
-            high_dest: high_dest,
+            bot_id,
+            low_dest,
+            high_dest,
         }
     }
 }
-
-
-pub type Bots = HashMap<usize, Bot>;
-pub type Outputs = HashMap<usize, HashSet<usize>>;
 
 /// Process a list of instructions.
 ///
 /// Be careful--there's no guard currently in place against an incomplete list of instructions
 /// leading to an infinite loop.
-pub fn process(instructions: Vec<Instruction>) -> Result<(Bots, Outputs), BotInsertErr> {
+pub fn process(instructions: &[Instruction]) -> Result<(Bots, Outputs), Error> {
     let mut bots = Bots::new();
     let mut outputs = Outputs::new();
 
     // convert to double-ended queue
-    let mut instructions: VecDeque<Instruction> = instructions.into_iter().collect();
+    let mut instructions: VecDeque<Instruction> = instructions.iter().copied().collect();
 
-    while !instructions.is_empty() {
-        match instructions.pop_front().unwrap() {
-            Instruction::Get { value, bot_id } => {
-                bots.entry(bot_id).or_insert(Bot::new(bot_id)).add_value(value)?
-            }
-            Instruction::Transfer { bot_id, low_dest, high_dest } => {
-                // we can't modify bots in-place in the next section, so we use these
-                // variables to track any necessary adjustments to the bots
-                let mut insert_bot_value_low = None;
-                let mut insert_bot_value_high = None;
+    while let Some(instruction) = instructions.pop_front() {
+        match instruction {
+            Instruction::Get { value, bot_id } => bots
+                .entry(bot_id)
+                .or_insert_with(|| Bot::new(bot_id))
+                .add_value(value)?,
+            Instruction::Transfer {
+                bot_id,
+                low_dest,
+                high_dest,
+            } => {
+                // clone the bot here to avoid mutable-immutable borrow issues
+                // bots are small; this is cheap
+                if let Some(Bot {
+                    low: Some(low),
+                    high: Some(high),
+                    ..
+                }) = bots.get(&bot_id).cloned()
+                {
+                    // transfer instruction and bot is full
+                    let mut give_to_receiver = |value, receiver| match receiver {
+                        Receiver::Bot(id) => {
+                            bots.entry(id).or_insert_with(|| Bot::new(id)).add_value(value)
+                        }
+                        Receiver::Output(id) => match outputs.entry(id) {
+                            Entry::Occupied(entry) => {
+                                // it's an error to put two different values into the same output
+                                if *entry.get() != value {
+                                    Err(Error::OutputInsert(id, *entry.get(), value))
+                                } else {
+                                    Ok(())
+                                }
+                            }
+                            Entry::Vacant(entry) => {
+                                entry.insert(value);
+                                Ok(())
+                            }
+                        },
+                    };
 
-                if let Some(bot) = bots.get(&bot_id) {
-                    if bot.is_full() {
-                        match low_dest {
-                            Receiver::Bot(id) => {
-                                insert_bot_value_low = Some((id, bot.low().unwrap()));
-                            }
-                            Receiver::Output(id) => {
-                                outputs.entry(id)
-                                    .or_insert(HashSet::new())
-                                    .insert(bot.low().unwrap());
-                            }
-                        }
-                        match high_dest {
-                            Receiver::Bot(id) => {
-                                insert_bot_value_high = Some((id, bot.high().unwrap()));
-                            }
-                            Receiver::Output(id) => {
-                                outputs.entry(id)
-                                    .or_insert(HashSet::new())
-                                    .insert(bot.high().unwrap());
-                            }
-                        }
-                    } else {
-                        instructions.push_back(Instruction::transfer(bot_id, low_dest, high_dest));
-                    }
+                    give_to_receiver(low, low_dest)?;
+                    give_to_receiver(high, high_dest)?;
                 } else {
+                    // bot is not found or not full; try again later
                     instructions.push_back(Instruction::transfer(bot_id, low_dest, high_dest));
-                }
-
-                // if everything worked, propagate our values to bots
-                if let Some((id, value)) = insert_bot_value_low {
-                    bots.entry(id).or_insert(Bot::new(id)).add_value(value)?;
-                }
-                if let Some((id, value)) = insert_bot_value_high {
-                    bots.entry(id).or_insert(Bot::new(id)).add_value(value)?;
                 }
             }
         }
@@ -215,87 +198,103 @@ pub fn process(instructions: Vec<Instruction>) -> Result<(Bots, Outputs), BotIns
 }
 
 /// Return the bot ID which handles the specified values
-pub fn find_bot_handling(bots: &Bots, v1: usize, v2: usize) -> Option<usize> {
+pub fn find_bot_handling(bots: &Bots, mut low: Value, mut high: Value) -> Result<Id, Error> {
     // ensure v1 <= v2 for simpler comparisons
-    let search_cache = if v1 < v2 {
-        Some((v1, v2))
-    } else {
-        Some((v2, v1))
-    };
-
-    for bot in bots.values() {
-        if bot.cache == search_cache {
-            return Some(bot.id);
-        }
+    if low > high {
+        std::mem::swap(&mut low, &mut high);
     }
-    None
+
+    bots.values()
+        .find(|bot| bot.low == Some(low) && bot.high == Some(high))
+        .map(|bot| bot.id)
+        .ok_or(Error::NoBotFound(low, high))
 }
 
-pub fn parse_lines(lines: &str) -> Option<Vec<Instruction>> {
-    lines.lines().map(|line| parse_inst(line.trim()).ok()).collect()
+pub fn part1(path: &Path) -> Result<(), Error> {
+    let instructions: Vec<Instruction> = parse(path)?.collect();
+    let (bots, _) = process(&instructions)?;
+    let bot = find_bot_handling(&bots, 61, 17)?;
+    println!("Bot handling (61, 17): {}", bot);
+    Ok(())
+}
+
+pub fn part2(path: &Path) -> Result<(), Error> {
+    let instructions: Vec<Instruction> = parse(path)?.collect();
+    let (_, outputs) = process(&instructions)?;
+    let chips = array::IntoIter::new([0, 1, 2])
+        .map(|id| outputs.get(&id).ok_or(Error::NoChipFound(id)))
+        .collect::<Result<Vec<_>, _>>()?;
+    let chip_product: Value = chips.into_iter().product();
+    println!("Product of chips (0, 1, 2): {}", chip_product);
+    Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("bot {1} is full but attempted to insert {0}")]
+    BotInsert(Value, Id),
+    #[error("could not find bot handling ({0}, {1})")]
+    NoBotFound(Value, Value),
+    #[error("output {0} contains {1} but attempted to insert {2}")]
+    OutputInsert(Id, Value, Value),
+    #[error("could not find a chip output {0}")]
+    NoChipFound(Id),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use maplit::hashmap;
 
-    use std::collections::HashSet;
+    const EXAMPLE_INSTRUCTIONS_STR: &[&str] = &[
+        "value 5 goes to bot 2",
+        "bot 2 gives low to bot 1 and high to bot 0",
+        "value 3 goes to bot 1",
+        "bot 1 gives low to output 1 and high to bot 0",
+        "bot 0 gives low to output 2 and high to output 0",
+        "value 2 goes to bot 2",
+    ];
 
-    fn get_example_instructions_unparsed() -> Vec<&'static str> {
-        vec![
-            "value 5 goes to bot 2",
-            "bot 2 gives low to bot 1 and high to bot 0",
-            "value 3 goes to bot 1",
-            "bot 1 gives low to output 1 and high to bot 0",
-            "bot 0 gives low to output 2 and high to output 0",
-            "value 2 goes to bot 2",
-        ]
-    }
-
-    fn get_example_instructions_parsed() -> Vec<Instruction> {
-        use Receiver::*;
-        vec![
-            Instruction::get(2, 5),
-            Instruction::transfer(2,Bot(1), Bot(0)),
-            Instruction::get(1, 3),
-            Instruction::transfer(1, Output(1), Bot(0)),
-            Instruction::transfer(0, Output(2), Output(0)),
-            Instruction::get(2, 2),
-        ]
-    }
+    const EXAMPLE_INSTRUCTIONS: &[Instruction] = &[
+        Instruction::get(2, 5),
+        Instruction::transfer(2, Receiver::Bot(1), Receiver::Bot(0)),
+        Instruction::get(1, 3),
+        Instruction::transfer(1, Receiver::Output(1), Receiver::Bot(0)),
+        Instruction::transfer(0, Receiver::Output(2), Receiver::Output(0)),
+        Instruction::get(2, 2),
+    ];
 
     #[test]
     fn test_expected() {
-        let mut expected_outputs = Outputs::new();
-        expected_outputs.entry(0).or_insert(HashSet::new()).insert(5);
-        expected_outputs.entry(1).or_insert(HashSet::new()).insert(2);
-        expected_outputs.entry(2).or_insert(HashSet::new()).insert(3);
+        let expected_outputs = hashmap!{
+            0 => 5,
+            1 => 2,
+            2 => 3,
+        };
 
-        match process(get_example_instructions_parsed()) {
-            Err(errmsg) => panic!(errmsg),
-            Ok((bots, outputs)) => {
-                println!("Bots:");
-                for bot in bots.values() {
-                    println!("  {:?}", bot);
-                }
-                println!("Outputs: {:?}", outputs);
+        let (bots, outputs) = process(EXAMPLE_INSTRUCTIONS).unwrap();
 
-                assert!(outputs == expected_outputs);
-                println!("Bot handling 5 and 2: {:?}", find_bot_handling(&bots, 5, 2));
-                assert!(find_bot_handling(&bots, 5, 2) == Some(2));
-            }
+        println!("Bots:");
+        for bot in bots.values() {
+            println!("  {:?}", bot);
         }
+        println!("Outputs: {:?}", outputs);
+
+        assert!(outputs == expected_outputs);
+        assert_eq!(find_bot_handling(&bots, 5, 2).unwrap(), 2);
     }
 
     #[test]
     fn test_parse() {
-        for (raw, parsed) in get_example_instructions_unparsed()
+        for (raw, parsed) in EXAMPLE_INSTRUCTIONS_STR
             .iter()
-            .zip(get_example_instructions_parsed()) {
+            .zip(EXAMPLE_INSTRUCTIONS.iter())
+        {
             println!("Parsing '{}'; expecting {:?}", raw, parsed);
-            let got = parse_inst(raw);
-            println!("Got {:?}", got);
-            assert_eq!(got, Ok(parsed));
+            let got = raw.parse::<Instruction>().unwrap();
+            assert_eq!(got, *parsed);
         }
     }
 }
