@@ -6,6 +6,5 @@ edition = "2018"
 
 [dependencies]
 color-eyre = "0.5.11"
-itertools = "0.10.0"
 structopt = "0.3.21"
 thiserror = "1.0.24"

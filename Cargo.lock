@@ -474,7 +474,6 @@ name = "day11"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "itertools",
  "structopt",
  "thiserror",
 ]
