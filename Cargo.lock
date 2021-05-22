@@ -36,7 +36,7 @@ dependencies = [
 [[package]]
 name = "aoclib"
 version = "0.1.0"
-source = "git+https://github.com/coriolinus/aoclib.git#a6f65680a9c2f1fa3c9a7932db01d7e34694c9bf"
+source = "git+https://github.com/coriolinus/aoclib.git#2495931ec3a86d86938f8ea2b87ce93884aa5e23"
 dependencies = [
  "bitvec",
  "dirs",
@@ -488,6 +488,16 @@ dependencies = [
  "aoclib",
  "color-eyre",
  "parse-display 0.5.0",
+ "structopt",
+ "thiserror",
+]
+
+[[package]]
+name = "day13"
+version = "0.1.0"
+dependencies = [
+ "aoclib",
+ "color-eyre",
  "structopt",
  "thiserror",
 ]
