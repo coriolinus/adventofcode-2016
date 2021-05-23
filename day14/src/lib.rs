@@ -137,7 +137,7 @@ fn make_stretched_hash_for(salt: &str) -> impl Fn(usize) -> String {
 }
 
 // important! only consider the first triplet in any given hash
-fn triplets_in(hash: &str) -> Option<char> {
+fn first_triplet_in(hash: &str) -> Option<char> {
     hash.as_bytes()
         .windows(3)
         .filter(|window| window[0] == window[1] && window[1] == window[2])
@@ -166,7 +166,7 @@ fn generate_onetime_pad(make_hash: impl Fn(usize) -> String) -> (String, usize) 
     let mut idx = 0;
     while keys.len() < 64 {
         let hash = make_hash(idx);
-        keys.extend(state.update(idx, triplets_in(&hash), quintuplets_in(&hash)));
+        keys.extend(state.update(idx, first_triplet_in(&hash), quintuplets_in(&hash)));
         idx += 1;
     }
 
@@ -252,11 +252,11 @@ mod tests {
 
         for idx in 0..18 {
             let hash = hash_for(idx);
-            assert!(!has_eight(triplets_in(&hash)));
+            assert!(!has_eight(first_triplet_in(&hash)));
         }
 
         let hash = hash_for(18);
-        assert!(has_eight(triplets_in(&hash)));
+        assert!(has_eight(first_triplet_in(&hash)));
 
         for idx in 19..=1018 {
             let hash = hash_for(idx);
@@ -271,11 +271,11 @@ mod tests {
 
         for idx in 0..39 {
             let hash = hash_for(idx);
-            assert!(!has_e(triplets_in(&hash)));
+            assert!(!has_e(first_triplet_in(&hash)));
         }
 
         let hash = hash_for(39);
-        assert!(has_e(triplets_in(&hash)));
+        assert!(has_e(first_triplet_in(&hash)));
 
         for idx in 40..816 {
             let hash = hash_for(idx);
@@ -299,11 +299,11 @@ mod tests {
 
         for idx in 0..5 {
             let hash = stretched_hash_for(idx);
-            assert!(triplets_in(&hash).is_none());
+            assert!(first_triplet_in(&hash).is_none());
         }
 
         let hash = stretched_hash_for(5);
-        assert!(has_2(triplets_in(&hash)));
+        assert!(has_2(first_triplet_in(&hash)));
 
         for idx in 6..=1005 {
             let hash = stretched_hash_for(idx);
@@ -318,11 +318,11 @@ mod tests {
 
         for idx in 0..10 {
             let hash = stretched_hash_for(idx);
-            assert!(!has_e(triplets_in(&hash)));
+            assert!(!has_e(first_triplet_in(&hash)));
         }
 
         let hash = stretched_hash_for(10);
-        assert!(has_e(triplets_in(&hash)));
+        assert!(has_e(first_triplet_in(&hash)));
 
         for idx in 11..89 {
             let hash = stretched_hash_for(idx);
