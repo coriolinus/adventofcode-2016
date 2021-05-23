@@ -9,6 +9,22 @@ use std::path::Path;
 //
 // - ~50,000 => too low
 // - 237235 => too high
+//
+// cheating with mathematica:
+//
+// In[5]:= sizes = {13, 17, 19, 7, 5, 3}
+//
+// Out[5]= {13,17,19,7,5,3}
+//
+// In[6]:= positions = {10, 15, 17, 1, 0, 1}
+//
+// Out[6]= {10,15,17,1,0,1}
+//
+// In[7]:= ChineseRemainder[-positions - Range[6], sizes]
+//
+// Out[7]= 203660
+//
+// so why isn't my implementation producing this value? look into that
 
 #[derive(Debug, Clone, PartialEq, Eq, parse_display::Display, parse_display::FromStr)]
 #[display("Disc has {positions} positions; at time=0, it is at position {initial}.")]
