@@ -90,18 +90,30 @@ impl Data {
 }
 
 const PART1_SIZE: usize = 272;
+const PART2_SIZE: usize = 35651584;
 
 pub fn part1(input: &Path) -> Result<(), Error> {
     for initial_state in parse::<Data>(input)? {
         let filled = initial_state.dragon_fill(PART1_SIZE);
         let checksum = filled.checksum();
-        println!("Given {}, checksum is {}", initial_state, checksum);
+        println!(
+            "Given {}, size {}, checksum is {}",
+            initial_state, PART1_SIZE, checksum
+        );
     }
     Ok(())
 }
 
-pub fn part2(_input: &Path) -> Result<(), Error> {
-    unimplemented!()
+pub fn part2(input: &Path) -> Result<(), Error> {
+    for initial_state in parse::<Data>(input)? {
+        let filled = initial_state.dragon_fill(PART2_SIZE);
+        let checksum = filled.checksum();
+        println!(
+            "Given {}, size {}, checksum is {}",
+            initial_state, PART2_SIZE, checksum
+        );
+    }
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
