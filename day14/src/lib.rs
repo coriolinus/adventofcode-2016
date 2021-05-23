@@ -76,10 +76,12 @@ impl State {
             }
         }
 
-        // now compute the return value: fives which have been satisfied
-        // by a prior three. Note that we have to compute this _before_ we add
-        // the new potential keys from the threes, to avoid the situation in which
-        // a lone five without a prior three activates itself.
+        // Now compute the return value: quintuplets which have been satisfied
+        // by a prior triplet.
+        //
+        // Note that we have to compute this _before_ we add the new potential
+        // key from the triplet, to avoid the situation in which a lone
+        // quintuplet without a matching prior triplet activates itself.
         let (min_bound, _) = quintuplets.size_hint();
         let mut activated_keys = Vec::with_capacity(min_bound);
         for activated_key in quintuplets {
@@ -92,14 +94,7 @@ impl State {
 
         // finally add the new potential key to the tracked state
         if let Some(potential_key) = triplet {
-            // note that we have to deduplicate
-            if !self[potential_key]
-                .back()
-                .map(|&last_idx| last_idx == idx)
-                .unwrap_or_default()
-            {
-                self[potential_key].push_back(idx);
-            }
+            self[potential_key].push_back(idx);
         }
 
         activated_keys
