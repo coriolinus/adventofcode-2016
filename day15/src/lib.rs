@@ -73,8 +73,17 @@ pub fn part1(input: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn part2(_input: &Path) -> Result<(), Error> {
-    unimplemented!()
+pub fn part2(input: &Path) -> Result<(), Error> {
+    let mut discs: Vec<Disc> = parse(input)?.collect();
+    discs.push(Disc {
+        positions: 11,
+        initial: 0,
+    });
+    println!(
+        "discs first line up at time {}",
+        when_discs_line_up(&discs).ok_or(Error::NoSolution)?
+    );
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
