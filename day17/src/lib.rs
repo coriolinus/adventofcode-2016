@@ -9,7 +9,6 @@ use std::{
     ops::{Index, IndexMut},
     path::Path,
     rc::Rc,
-    unimplemented,
 };
 
 type Map = aoclib::geometry::Map<()>;
@@ -177,6 +176,32 @@ fn breadth_first_search(
     None
 }
 
+// be careful with the inputs; this is probably going to terminate eventually,
+// but nothing in this code prevents an infinite loop
+fn find_longest_path_to(
+    initial: Point,
+    goal: Point,
+    get_room_status: impl Fn(&[Direction]) -> RoomStatus,
+) -> Option<usize> {
+    let mut queue = VecDeque::new();
+    queue.push_front(State::new(initial));
+
+    let mut max_path_len = None;
+
+    while let Some(state) = queue.pop_front() {
+        // if we find the goal, update the max found so far but do _not_ return
+        // or add children.
+        if state.position == goal {
+            max_path_len = Some(state.path_to().len().max(max_path_len.unwrap_or_default()));
+            continue;
+        }
+
+        queue.extend(state.children(&get_room_status));
+    }
+
+    max_path_len
+}
+
 pub fn part1(input: &Path) -> Result<(), Error> {
     for passcode in parse::<String>(input)? {
         let get_room_status = make_get_room_status(&passcode);
@@ -187,8 +212,14 @@ pub fn part1(input: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn part2(_input: &Path) -> Result<(), Error> {
-    unimplemented!()
+pub fn part2(input: &Path) -> Result<(), Error> {
+    for passcode in parse::<String>(input)? {
+        let get_room_status = make_get_room_status(&passcode);
+        let path_len = find_longest_path_to(MAP.top_left(), MAP.bottom_right(), get_room_status)
+            .ok_or(Error::NotFound)?;
+        println!("longest path to goal: {}", path_len);
+    }
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
