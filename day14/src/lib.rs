@@ -1,3 +1,7 @@
+//! Make some _very bad_ one-time pads.
+//!
+//! Note: part2 is slow, consider testing in release mode.
+
 use aoclib::parse;
 use crypto::{digest::Digest, md5::Md5};
 use std::{
@@ -50,20 +54,22 @@ impl IndexMut<char> for State {
 impl State {
     /// Update the state from the hashes at a given index.
     ///
-    /// Returns keys which should be added to the one-time pad.
+    /// Returns `(insert, key)`, where `key` is a character in the one-time pad
+    /// and `insert` is the index at which it was originally inserted as a member
+    /// of a triplet.
     fn update(
         &mut self,
         idx: usize,
-        threes: impl Iterator<Item = char>,
-        fives: impl Iterator<Item = char>,
-    ) -> impl '_ + Iterator<Item = char> {
+        triplet: Option<char>,
+        quintuplets: impl Iterator<Item = char>,
+    ) -> Vec<(usize, char)> {
         // first, clear all pending potential keys which have expired
         // a potential key is expired when its activaction index was
         // more than 1000 ago
         for queue in self.0.iter_mut() {
             while queue
                 .front()
-                .map(|&item_idx| idx - item_idx > 1000)
+                .map(|&insert_idx| idx - insert_idx > 1000)
                 .unwrap_or_default()
             {
                 queue.pop_front();
@@ -74,32 +80,18 @@ impl State {
         // by a prior three. Note that we have to compute this _before_ we add
         // the new potential keys from the threes, to avoid the situation in which
         // a lone five without a prior three activates itself.
-        let (min_bound, _) = fives.size_hint();
+        let (min_bound, _) = quintuplets.size_hint();
         let mut activated_keys = Vec::with_capacity(min_bound);
-        for activated_key in fives {
+        for activated_key in quintuplets {
             activated_keys.extend(
                 self[activated_key]
                     .drain(..)
-                    .map(|idx| (idx, activated_key)),
+                    .map(|insert_idx| (insert_idx, activated_key)),
             );
         }
-        activated_keys.sort_unstable();
-        // we'll get weird, hard-to-debug errors if this condition ever proves false:
-        // the keys are sorted by their insertion index but also alphabetically, so if
-        // two keys ever get inserted and activated on the same block, we have at least a
-        // 50% chance of emitting them in the wrong order.
-        //
-        // that does seem unlikely, which is why this is just asserted instead of engineering
-        // around the problem, but it's worth the runtime cost of the check.
-        assert!(
-            activated_keys
-                .windows(2)
-                .all(|window| window[0].0 != window[1].0),
-            "duplicate activated key indices",
-        );
 
-        // finally add new potential keys to the tracked state
-        for potential_key in threes {
+        // finally add the new potential key to the tracked state
+        if let Some(potential_key) = triplet {
             // note that we have to deduplicate
             if !self[potential_key]
                 .back()
@@ -110,14 +102,14 @@ impl State {
             }
         }
 
-        activated_keys.into_iter().map(|(_idx, key)| key)
+        activated_keys
     }
 }
 
 /// make a function which, given an integer, computes its salted hash
 fn make_hash_for(salt: &str) -> impl Fn(usize) -> String {
     let mut digest = Md5::new();
-    digest.input_str(&salt);
+    digest.input_str(salt);
     move |idx| {
         let mut digest = digest.clone();
         digest.input_str(&idx.to_string());
@@ -125,14 +117,35 @@ fn make_hash_for(salt: &str) -> impl Fn(usize) -> String {
     }
 }
 
-fn matches_three(hash: &str) -> impl '_ + Iterator<Item = char> {
+/// make a function which, given an integer, computes its stretched, salted hash
+fn make_stretched_hash_for(salt: &str) -> impl Fn(usize) -> String {
+    let mut digest = Md5::new();
+    digest.input_str(salt);
+
+    move |idx| {
+        let mut digest = digest.clone();
+        digest.input_str(&idx.to_string());
+
+        for _ in 0..2016 {
+            let hash = digest.result_str();
+            digest.reset();
+            digest.input_str(&hash);
+        }
+
+        digest.result_str()
+    }
+}
+
+// important! only consider the first triplet in any given hash
+fn triplets_in(hash: &str) -> Option<char> {
     hash.as_bytes()
         .windows(3)
         .filter(|window| window[0] == window[1] && window[1] == window[2])
         .map(|window| window[0] as char)
+        .next()
 }
 
-fn matches_five(hash: &str) -> impl '_ + Iterator<Item = char> {
+fn quintuplets_in(hash: &str) -> impl '_ + Iterator<Item = char> {
     hash.as_bytes()
         .windows(5)
         .filter(|window| {
@@ -143,27 +156,48 @@ fn matches_five(hash: &str) -> impl '_ + Iterator<Item = char> {
         .map(|window| window[0] as char)
 }
 
-pub fn part1(input: &Path) -> Result<(), Error> {
+/// Generate a onetime pad using the specified hash-maker.
+///
+/// Return the pad and the index which produced its 64th character.
+fn generate_onetime_pad(make_hash: impl Fn(usize) -> String) -> (String, usize) {
+    let mut state = State::default();
+    let mut keys = Vec::with_capacity(64);
+
+    let mut idx = 0;
+    while keys.len() < 64 {
+        let hash = make_hash(idx);
+        keys.extend(state.update(idx, triplets_in(&hash), quintuplets_in(&hash)));
+        idx += 1;
+    }
+
+    keys.truncate(64);
+    keys.sort_unstable();
+    let (final_insert, _) = keys.last().unwrap().clone();
+    let pad = keys.into_iter().map(|(_, key)| key).collect();
+
+    (pad, final_insert)
+}
+
+pub fn part1(input: &Path, show_pad: bool) -> Result<(), Error> {
     for salt in parse::<String>(input)? {
-        let make_hash = make_hash_for(&salt);
-
-        let mut state = State::default();
-        let mut pad = String::with_capacity(64);
-
-        let mut idx = 0;
-        while pad.len() < 64 {
-            let hash = make_hash(idx);
-            pad.extend(state.update(idx, matches_three(&hash), matches_five(&hash)));
-            idx += 1;
+        let (pad, idx) = generate_onetime_pad(make_hash_for(&salt));
+        println!("salt {}: generates at idx {}", salt, idx);
+        if show_pad {
+            println!("  pad: {}", pad);
         }
-
-        println!("for salt {}, idx {} produces the 64th key", salt, idx - 1);
     }
     Ok(())
 }
 
-pub fn part2(_input: &Path) -> Result<(), Error> {
-    unimplemented!()
+pub fn part2(input: &Path, show_pad: bool) -> Result<(), Error> {
+    for salt in parse::<String>(input)? {
+        let (pad, idx) = generate_onetime_pad(make_stretched_hash_for(&salt));
+        println!("salt {}: generates (stretched) at idx {}", salt, idx);
+        if show_pad {
+            println!("  pad: {}", pad);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -184,8 +218,9 @@ mod tests {
     /// unless the generic parameters are known at call time of the outer call.
     macro_rules! make_has_char {
         (fn $name:ident() for $want:expr) => {
-            fn $name(mut repeated_digits: impl Iterator<Item = char>) -> bool {
+            fn $name(repeated_digits: impl IntoIterator<Item = char>) -> bool {
                 repeated_digits
+                    .into_iter()
                     .find_map(|ch| (ch == $want).then(|| ()))
                     .is_some()
             }
@@ -217,15 +252,15 @@ mod tests {
 
         for idx in 0..18 {
             let hash = hash_for(idx);
-            assert!(!has_eight(matches_three(&hash)));
+            assert!(!has_eight(triplets_in(&hash)));
         }
 
         let hash = hash_for(18);
-        assert!(has_eight(matches_three(&hash)));
+        assert!(has_eight(triplets_in(&hash)));
 
         for idx in 19..=1018 {
             let hash = hash_for(idx);
-            assert!(!has_eight(matches_five(&hash)));
+            assert!(!has_eight(quintuplets_in(&hash)));
         }
     }
 
@@ -236,18 +271,79 @@ mod tests {
 
         for idx in 0..39 {
             let hash = hash_for(idx);
-            assert!(!has_e(matches_three(&hash)));
+            assert!(!has_e(triplets_in(&hash)));
         }
 
         let hash = hash_for(39);
-        assert!(has_e(matches_three(&hash)));
+        assert!(has_e(triplets_in(&hash)));
 
         for idx in 40..816 {
             let hash = hash_for(idx);
-            assert!(!has_e(matches_five(&hash)));
+            assert!(!has_e(quintuplets_in(&hash)));
         }
 
         let hash = hash_for(816);
-        assert!(has_e(matches_five(&hash)));
+        assert!(has_e(quintuplets_in(&hash)));
+    }
+
+    #[test]
+    fn stretched_hash_example() {
+        let stretched_hash_for = make_stretched_hash_for("abc");
+        assert_eq!(stretched_hash_for(0), "a107ff634856bb300138cac6568c0f24");
+    }
+
+    #[test]
+    fn stretched_example_2s() {
+        let stretched_hash_for = make_stretched_hash_for("abc");
+        make_has_char!(fn has_2() for '2');
+
+        for idx in 0..5 {
+            let hash = stretched_hash_for(idx);
+            assert!(triplets_in(&hash).is_none());
+        }
+
+        let hash = stretched_hash_for(5);
+        assert!(has_2(triplets_in(&hash)));
+
+        for idx in 6..=1005 {
+            let hash = stretched_hash_for(idx);
+            assert!(!has_2(quintuplets_in(&hash)));
+        }
+    }
+
+    #[test]
+    fn stretched_example_es() {
+        let stretched_hash_for = make_stretched_hash_for("abc");
+        make_has_char!(fn has_e() for 'e');
+
+        for idx in 0..10 {
+            let hash = stretched_hash_for(idx);
+            assert!(!has_e(triplets_in(&hash)));
+        }
+
+        let hash = stretched_hash_for(10);
+        assert!(has_e(triplets_in(&hash)));
+
+        for idx in 11..89 {
+            let hash = stretched_hash_for(idx);
+            assert!(!has_e(quintuplets_in(&hash)));
+        }
+
+        let hash = stretched_hash_for(89);
+        assert!(has_e(quintuplets_in(&hash)));
+    }
+
+    #[test]
+    fn full_example() {
+        let (pad, idx) = generate_onetime_pad(make_hash_for("abc"));
+        dbg!(pad);
+        assert_eq!(idx, 22728);
+    }
+
+    #[test]
+    fn full_stretched_example() {
+        let (pad, idx) = generate_onetime_pad(make_stretched_hash_for("abc"));
+        dbg!(pad);
+        assert_eq!(idx, 22551);
     }
 }

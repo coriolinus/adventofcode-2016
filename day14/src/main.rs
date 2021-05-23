@@ -21,6 +21,9 @@ struct RunArgs {
     /// run part 2
     #[structopt(long)]
     part2: bool,
+
+    #[structopt(long)]
+    show_pad: bool,
 }
 
 impl RunArgs {
@@ -44,10 +47,10 @@ fn main() -> Result<()> {
     let input_path = args.input()?;
 
     if !args.no_part1 {
-        part1(&input_path)?;
+        part1(&input_path, args.show_pad)?;
     }
     if args.part2 {
-        part2(&input_path)?;
+        part2(&input_path, args.show_pad)?;
     }
     Ok(())
 }
