@@ -2,8 +2,8 @@ use aoclib::{config::Config, website::get_input};
 use day19::{part1, part2};
 
 use color_eyre::eyre::Result;
-use structopt::StructOpt;
 use std::path::PathBuf;
+use structopt::StructOpt;
 
 const YEAR: u32 = 2016;
 const DAY: u8 = 19;
@@ -21,6 +21,9 @@ struct RunArgs {
     /// run part 2
     #[structopt(long)]
     part2: bool,
+
+    #[structopt(long)]
+    first_100_across: bool,
 }
 
 impl RunArgs {
@@ -45,6 +48,9 @@ fn main() -> Result<()> {
 
     if !args.no_part1 {
         part1(&input_path)?;
+    }
+    if args.first_100_across {
+        day19::first_100_across();
     }
     if args.part2 {
         part2(&input_path)?;
