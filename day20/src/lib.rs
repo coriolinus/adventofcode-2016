@@ -17,13 +17,16 @@ use std::{collections::BTreeSet, path::Path};
 #[display("{0}-{1}")]
 struct Rule(u32, u32);
 
-// not right answer: too low: 1888889
-fn lowest_legal_value(rules: impl Iterator<Item = Rule>) -> Option<u32> {
+fn ordered_rules_iter_from(rules: impl Iterator<Item = Rule>) -> impl Iterator<Item = Rule> {
     let rules: BTreeSet<_> = rules
         .chain(std::iter::once(Rule::default()))
         .inspect(|Rule(low, high)| debug_assert!(low <= high))
         .collect();
-    let mut iter = rules.into_iter().peekable();
+    rules.into_iter()
+}
+
+fn lowest_legal_value(rules: impl Iterator<Item = Rule>) -> Option<u32> {
+    let mut iter = ordered_rules_iter_from(rules).peekable();
     while let Some(Rule(_, prev_high)) = iter.next() {
         match iter.peek() {
             None if prev_high < u32::MAX - 1 => return Some(prev_high + 1),
@@ -35,14 +38,33 @@ fn lowest_legal_value(rules: impl Iterator<Item = Rule>) -> Option<u32> {
     None
 }
 
+fn num_legal_values(rules: impl Iterator<Item = Rule>) -> u32 {
+    let mut count = 0;
+    let mut iter = ordered_rules_iter_from(rules).peekable();
+    while let Some(Rule(_, prev_high)) = iter.next() {
+        count += match iter.peek() {
+            None => u32::MAX - prev_high,
+            Some(Rule(next_low, _)) if prev_high < u32::MAX - 1 && *next_low > prev_high + 1 => {
+                next_low - prev_high - 1
+            }
+            _ => 0,
+        }
+    }
+
+    count
+}
+
 pub fn part1(input: &Path) -> Result<(), Error> {
     let llv = lowest_legal_value(parse(input)?).ok_or(Error::NoSolution)?;
     println!("lowest legal value: {}", llv);
     Ok(())
 }
 
-pub fn part2(_input: &Path) -> Result<(), Error> {
-    unimplemented!()
+// known wrong: too high: 801988815
+pub fn part2(input: &Path) -> Result<(), Error> {
+    let legal_values = num_legal_values(parse(input)?);
+    println!("num legal values: {}", legal_values);
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
