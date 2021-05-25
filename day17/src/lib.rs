@@ -78,7 +78,7 @@ fn make_get_room_status(passcode: &str) -> impl Fn(&[Direction]) -> RoomStatus {
     let mut digest = Md5::new();
     digest.input_str(passcode);
     move |path| {
-        let mut digest = digest.clone();
+        let mut digest = digest; // copy it
         let path: String = make_path_str(path);
         digest.input_str(&path);
         let hash = digest.result_str();

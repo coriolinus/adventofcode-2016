@@ -86,7 +86,7 @@ impl Floor {
 
         let pairs_count = self.pairs().count();
         debug_assert!(pairs_count <= 0b1111);
-        out |= (pairs_count as u64) << 0;
+        out |= pairs_count as u64;
 
         let unpaired_chips_count = self.unpaired_chips().count();
         debug_assert!(unpaired_chips_count <= 0b1111);

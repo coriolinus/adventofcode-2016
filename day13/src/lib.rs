@@ -44,7 +44,7 @@ pub fn part1(input: &Path) -> Result<(), Error> {
         let map = make_map(64, favorite_number);
         let path_len = map
             .navigate(INITIAL, PART1_GOAL)
-            .ok_or_else(|| Error::NoPath(INITIAL, PART1_GOAL))?
+            .ok_or(Error::NoPath(INITIAL, PART1_GOAL))?
             .len();
         println!("number of steps from initial to goal: {}", path_len);
     }

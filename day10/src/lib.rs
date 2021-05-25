@@ -165,9 +165,10 @@ pub fn process(instructions: &[Instruction]) -> Result<(Bots, Outputs), Error> {
                 {
                     // transfer instruction and bot is full
                     let mut give_to_receiver = |value, receiver| match receiver {
-                        Receiver::Bot(id) => {
-                            bots.entry(id).or_insert_with(|| Bot::new(id)).add_value(value)
-                        }
+                        Receiver::Bot(id) => bots
+                            .entry(id)
+                            .or_insert_with(|| Bot::new(id))
+                            .add_value(value),
                         Receiver::Output(id) => match outputs.entry(id) {
                             Entry::Occupied(entry) => {
                                 // it's an error to put two different values into the same output
@@ -268,7 +269,7 @@ mod tests {
 
     #[test]
     fn test_expected() {
-        let expected_outputs = hashmap!{
+        let expected_outputs = hashmap! {
             0 => 5,
             1 => 2,
             2 => 3,

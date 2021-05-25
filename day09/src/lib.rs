@@ -53,7 +53,7 @@ impl State {
     pub fn check_error(&self) -> Result<(), Error> {
         match self {
             Self::Error(err) => Err(Error::DecompressionError(err)),
-            _ => Ok(())
+            _ => Ok(()),
         }
     }
 }
@@ -80,27 +80,23 @@ fn handle_char(state: State, input: char) -> (State, Option<String>) {
             if input != 'x' {
                 wip.push(input);
                 (ParsingMarkerLength(wip), None)
+            } else if let Ok(length) = wip.parse::<usize>() {
+                (ParsingMarkerCount(length, String::new()), None)
             } else {
-                if let Ok(length) = wip.parse::<usize>() {
-                    (ParsingMarkerCount(length, String::new()), None)
-                } else {
-                    (
-                        Error("Could not parse marker length"),
-                        Some(input.to_string()),
-                    )
-                }
+                (
+                    Error("Could not parse marker length"),
+                    Some(input.to_string()),
+                )
             }
         }
         ParsingMarkerCount(length, mut wip) => {
             if input != ')' {
                 wip.push(input);
                 (ParsingMarkerCount(length, wip), None)
+            } else if let Ok(count) = wip.parse::<usize>() {
+                (ReadingMarked(length, count, String::new()), None)
             } else {
-                if let Ok(count) = wip.parse::<usize>() {
-                    (ReadingMarked(length, count, String::new()), None)
-                } else {
-                    (Error("Could not parse marker count"), None)
-                }
+                (Error("Could not parse marker count"), None)
             }
         }
         ReadingMarked(mut length, count, mut wip) => {
@@ -166,8 +162,7 @@ where
         .map(|(_, c)| c)
         .take_while(|c| *c != 'x')
         .collect::<String>();
-    let length = length_str
-        .parse::<usize>();
+    let length = length_str.parse::<usize>();
     let (index, count_str): (Vec<usize>, String) =
         input.by_ref().take_while(|&(_, c)| c != ')').unzip();
     // index is last updated on the character preceding the close paren.
@@ -178,7 +173,10 @@ where
 
     match (length, count) {
         (Ok(length), Ok(count)) => Ok((index, length, count)),
-        _ => Err(Error::ParseMarker(format!("({}x{})", length_str, count_str))),
+        _ => Err(Error::ParseMarker(format!(
+            "({}x{})",
+            length_str, count_str
+        ))),
     }
 }
 
@@ -232,7 +230,7 @@ where
                 .iter()
                 .map(|&(_, multiplicand)| multiplicand as u64)
                 .product();
-            total = total + BigUint::from_u64(multiplicand).unwrap();
+            total += BigUint::from_u64(multiplicand).unwrap();
         }
     }
     Ok(total)

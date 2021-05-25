@@ -2,12 +2,11 @@ use aoclib::{config::Config, website::get_input};
 use day01::{part1, part2};
 
 use color_eyre::eyre::Result;
-use structopt::StructOpt;
 use std::path::PathBuf;
+use structopt::StructOpt;
 
 const YEAR: u32 = 2016;
 const DAY: u8 = 1;
-
 
 #[derive(StructOpt, Debug)]
 struct RunArgs {
@@ -15,17 +14,14 @@ struct RunArgs {
     #[structopt(long, parse(from_os_str))]
     input: Option<PathBuf>,
 
-
     /// skip part 1
     #[structopt(long)]
     no_part1: bool,
-
 
     /// run part 2
     #[structopt(long)]
     part2: bool,
 }
-
 
 impl RunArgs {
     fn input(&self) -> Result<PathBuf> {
@@ -42,12 +38,10 @@ impl RunArgs {
     }
 }
 
-
 fn main() -> Result<()> {
     color_eyre::install()?;
     let args = RunArgs::from_args();
     let input_path = args.input()?;
-
 
     if !args.no_part1 {
         part1(&input_path)?;

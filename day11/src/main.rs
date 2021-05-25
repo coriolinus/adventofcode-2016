@@ -10,7 +10,6 @@ struct RunArgs {
     // accept manually entering the input
     //
     // See https://github.com/coriolinus/adventofcode-2016/pull/2
-
     /// skip part 1
     #[structopt(long)]
     no_part1: bool,

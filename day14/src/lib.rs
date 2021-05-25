@@ -106,7 +106,7 @@ fn make_hash_for(salt: &str) -> impl Fn(usize) -> String {
     let mut digest = Md5::new();
     digest.input_str(salt);
     move |idx| {
-        let mut digest = digest.clone();
+        let mut digest = digest; // copy it
         digest.input_str(&idx.to_string());
         digest.result_str()
     }
@@ -118,7 +118,7 @@ fn make_stretched_hash_for(salt: &str) -> impl Fn(usize) -> String {
     digest.input_str(salt);
 
     move |idx| {
-        let mut digest = digest.clone();
+        let mut digest = digest; // copy it
         digest.input_str(&idx.to_string());
 
         for _ in 0..2016 {
@@ -167,7 +167,7 @@ fn generate_onetime_pad(make_hash: impl Fn(usize) -> String) -> (String, usize) 
 
     keys.truncate(64);
     keys.sort_unstable();
-    let (final_insert, _) = keys.last().unwrap().clone();
+    let (final_insert, _) = *keys.last().unwrap();
     let pad = keys.into_iter().map(|(_, key)| key).collect();
 
     (pad, final_insert)

@@ -80,7 +80,7 @@ impl Data {
         while data.len() % 2 == 0 {
             next.clear();
             for pair in data.chunks(2) {
-                next.push(if pair[0] == pair[1] { true } else { false });
+                next.push(pair[0] == pair[1]);
             }
             std::mem::swap(&mut data, &mut next);
         }
