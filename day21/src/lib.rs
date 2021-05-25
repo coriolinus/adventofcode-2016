@@ -21,9 +21,8 @@ fn reverse_rotate_position(mut pos: usize) -> usize {
         return 7;
     }
     if pos % 2 == 0 {
-        pos += 8;
+        pos += 7;
     }
-    pos -= 1;
     pos / 2
 }
 
