@@ -598,6 +598,7 @@ dependencies = [
  "aoclib",
  "color-eyre",
  "lazy_static",
+ "parse-display 0.5.0",
  "regex",
  "structopt",
  "thiserror",

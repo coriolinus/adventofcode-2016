@@ -1,12 +1,14 @@
-use aoclib::geometry::{Direction, Point};
+use aoclib::geometry::{
+    map::{ContextInto, Map as GenericMap, Traversable},
+    tile::DisplayWidth,
+    Direction, Point,
+};
 use regex::Regex;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     convert::{TryFrom, TryInto},
     io::BufRead,
-    ops::IndexMut,
     path::Path,
-    rc::Rc,
     str::FromStr,
 };
 
@@ -97,50 +99,40 @@ impl TryFrom<RawNode> for Node {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-struct MapNode {
-    size: u32,
-    used: u32,
-    // strictly speaking, this should be a hashset or something, but
-    // I'd be very surprised if we ever ended up with a vector more than
-    // a handful of items long, so it's probably fine to perform a linear search here.
-    data_from: Vec<Point>,
+#[derive(Debug, PartialEq, Eq, Clone, Copy, parse_display::Display)]
+enum MapNode {
+    #[display(".")]
+    Blank,
+    #[display("#")]
+    Wall,
 }
 
-impl From<Node> for MapNode {
-    fn from(
-        Node {
-            position,
-            size,
-            used,
-        }: Node,
-    ) -> Self {
-        MapNode {
-            size,
-            used,
-            data_from: vec![position],
+impl ContextInto<Traversable> for MapNode {
+    type Context = ();
+
+    fn ctx_into(self, _: &Self::Context) -> Traversable {
+        match self {
+            Self::Blank => Traversable::Free,
+            Self::Wall => Traversable::Obstructed,
         }
     }
 }
 
-impl MapNode {
-    fn avail(&self) -> u32 {
-        self.size - self.used
-    }
+impl DisplayWidth for MapNode {
+    const DISPLAY_WIDTH: usize = 1;
+}
 
-    fn move_into(&mut self, other: &mut MapNode) {
-        other.used += self.used;
-        self.used = 0;
-        other.data_from.extend(self.data_from.drain(..));
+impl Default for MapNode {
+    fn default() -> Self {
+        MapNode::Blank
     }
 }
 
-type Map = aoclib::geometry::Map<MapNode>;
+type Map = GenericMap<MapNode>;
 
-fn make_map(input: &Path) -> Result<Map, Error> {
-    let nodes: HashMap<_, MapNode> = parse(input)?
-        .map(|node| (node.position, node.into()))
-        .collect();
+// return a complete map, plus a list of empties
+fn make_map(input: &Path) -> Result<(Map, Vec<Point>), Error> {
+    let nodes: HashMap<_, Node> = parse(input)?.map(|node| (node.position, node)).collect();
     let max_x = nodes
         .keys()
         .map(|position| position.x)
@@ -151,81 +143,36 @@ fn make_map(input: &Path) -> Result<Map, Error> {
         .map(|position| position.y)
         .max()
         .ok_or(Error::NoInput)?;
-    Ok(Map::procedural(
-        max_x as usize,
-        max_y as usize,
-        |position| {
-            nodes
-                .get(&position)
-                .expect("input covers all points in map")
-                .clone()
-        },
+    let raw_map = GenericMap::procedural(max_x as usize + 1, max_y as usize + 1, |position| {
+        nodes
+            .get(&position)
+            .expect("input covers all points in map")
+            .clone()
+    });
+    let empties = nodes
+        .iter()
+        .filter_map(|(position, node)| (node.used == 0).then(move || *position))
+        .collect();
+    Ok((
+        Map::procedural(raw_map.width(), raw_map.height(), |position| {
+            if raw_map
+                .orthogonal_adjacencies(position)
+                .all(|neighbor_pos| raw_map[neighbor_pos].size >= raw_map[position].used)
+            {
+                MapNode::Blank
+            } else {
+                MapNode::Wall
+            }
+        }),
+        empties,
     ))
 }
 
-struct State {
-    map: Map,
-    // from parent map, move data from point in direction
-    parent: Option<(Rc<State>, Point, Direction)>,
-}
-
-impl State {
-    fn is_target(&self) -> bool {
-        self.map[self.map.bottom_left()]
-            .data_from
-            .contains(&self.map.bottom_right())
-    }
-
-    fn children(self) -> Vec<State> {
-        let state_parent = Rc::new(self);
-        let mut children = Vec::new();
-
-        state_parent.map.for_each_point(|node, point| {
-            for neighbor_point in state_parent.map.orthogonal_adjacencies(point) {
-                let neighbor = std::ops::Index::index(&state_parent.map, point);
-                if neighbor.avail() >= node.used {
-                    let mut map = state_parent.map.clone();
-                    let mut neighbor = neighbor.to_owned();
-                    map.index_mut(point).move_into(&mut neighbor);
-                    map[neighbor_point] = neighbor;
-
-                    children.push(State {
-                        map,
-                        parent: Some((
-                            state_parent.clone(),
-                            point,
-                            (neighbor_point - point).try_into().expect(
-                                "orthogonal adjacencies should always convert to a direction",
-                            ),
-                        )),
-                    })
-                }
-            }
-        });
-
-        children
-    }
-
-    fn steps_to(&self) -> usize {
-        self.parent
-            .as_ref()
-            .map(|(parent, _, _)| parent.steps_to() + 1)
-            .unwrap_or_default()
-    }
-}
-
-fn breadth_first_search(map: Map) -> Option<State> {
-    let mut queue = VecDeque::new();
-    queue.push_back(State { map, parent: None });
-
-    while let Some(state) = queue.pop_front() {
-        if state.is_target() {
-            return Some(state);
-        }
-        queue.extend(state.children())
-    }
-
-    None
+pub fn print_map(input: &Path) -> Result<(), Error> {
+    let (map, empties) = make_map(input)?;
+    println!("map:\n{}", map);
+    println!("empties: {:?}", empties);
+    Ok(())
 }
 
 pub fn part1(input: &Path) -> Result<(), Error> {
@@ -246,9 +193,37 @@ pub fn part1(input: &Path) -> Result<(), Error> {
 }
 
 pub fn part2(input: &Path) -> Result<(), Error> {
-    let map = make_map(input)?;
-    let solution_state = breadth_first_search(map).ok_or(Error::NoSolution)?;
-    println!("min steps to solution: {}", solution_state.steps_to());
+    let (map, empties) = make_map(input)?;
+    let (min_steps, starting_position) = empties
+        .into_iter()
+        .filter_map(|starting_position| {
+            // first move the blank tile to the left of the goal tile
+            let goal_tile = map.bottom_right() + Direction::Left;
+            debug_assert_eq!(goal_tile.y, 0);
+            let path_to_goal = map.navigate(starting_position, goal_tile)?;
+
+            // dumb optimization: we can print the map and know that there are no obstacles
+            // between here and the goal, so just use straight math instead of actually
+            // calculating a path
+            Some((
+                // how this formula works:
+                //
+                // - move the empty tile to the immediate left of the goal
+                //   tile in the most direct route possible
+                // - to move the node tile 1 space left and then reset the
+                //   state that the empty is directly to its left, we need
+                //   5 moves, multiplied until the empty tile is at the left edge
+                // - 1 more to move the node tile into the final empty space
+                path_to_goal.len() as i32 + (5 * goal_tile.x) + 1,
+                starting_position,
+            ))
+        })
+        .min()
+        .ok_or(Error::NoSolution)?;
+    println!(
+        "min steps to solution (starting from {:?}): {}",
+        starting_position, min_steps
+    );
     Ok(())
 }
 

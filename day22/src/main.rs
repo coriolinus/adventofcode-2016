@@ -1,9 +1,9 @@
 use aoclib::{config::Config, website::get_input};
-use day22::{part1, part2};
+use day22::{part1, part2, print_map};
 
 use color_eyre::eyre::Result;
-use structopt::StructOpt;
 use std::path::PathBuf;
+use structopt::StructOpt;
 
 const YEAR: u32 = 2016;
 const DAY: u8 = 22;
@@ -13,6 +13,10 @@ struct RunArgs {
     /// input file
     #[structopt(long, parse(from_os_str))]
     input: Option<PathBuf>,
+
+    /// print the input map and list of empties
+    #[structopt(long)]
+    print_map: bool,
 
     /// skip part 1
     #[structopt(long)]
@@ -43,6 +47,9 @@ fn main() -> Result<()> {
     let args = RunArgs::from_args();
     let input_path = args.input()?;
 
+    if args.print_map {
+        print_map(&input_path)?;
+    }
     if !args.no_part1 {
         part1(&input_path)?;
     }
