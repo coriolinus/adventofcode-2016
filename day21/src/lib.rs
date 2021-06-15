@@ -79,7 +79,9 @@ impl Operation {
                 buffer.make_contiguous()[a..=b].reverse();
             }
             Self::Move(from, to) => {
-                let c = buffer.remove(from).expect("attempted to remove from an idx out of range");
+                let c = buffer
+                    .remove(from)
+                    .expect("attempted to remove from an idx out of range");
                 buffer.insert(to, c);
             }
         }
@@ -116,7 +118,9 @@ impl Operation {
                 buffer.make_contiguous()[a..=b].reverse();
             }
             Self::Move(to, from) => {
-                let c = buffer.remove(from).expect("attempted to remove from an idx out of range");
+                let c = buffer
+                    .remove(from)
+                    .expect("attempted to remove from an idx out of range");
                 buffer.insert(to, c);
             }
         }
@@ -128,7 +132,8 @@ fn scramble(input: &str, operations: impl Iterator<Item = Operation>) -> String 
     for operation in operations {
         operation.apply(&mut buffer);
     }
-    String::from_utf8(buffer.into_iter().collect()).expect("scramble operations shouldn't remove utf8-ness")
+    String::from_utf8(buffer.into_iter().collect())
+        .expect("scramble operations shouldn't remove utf8-ness")
 }
 
 fn unscramble(input: &str, operations: impl Iterator<Item = Operation>) -> String {
@@ -140,7 +145,8 @@ fn unscramble(input: &str, operations: impl Iterator<Item = Operation>) -> Strin
     for operation in operations {
         operation.unapply(&mut buffer);
     }
-    String::from_utf8(buffer.into_iter().collect()).expect("scramble operations shouldn't remove utf8-ness")
+    String::from_utf8(buffer.into_iter().collect())
+        .expect("scramble operations shouldn't remove utf8-ness")
 }
 
 pub fn part1(input: &Path) -> Result<(), Error> {
