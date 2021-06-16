@@ -36,7 +36,7 @@ dependencies = [
 [[package]]
 name = "aoclib"
 version = "0.1.0"
-source = "git+https://github.com/coriolinus/aoclib.git#41380818376972af72f69dfd7ea34506c5f2961a"
+source = "git+https://github.com/coriolinus/aoclib.git#f527450e04b0fe2e61a7d9bbdab45e2431603067"
 dependencies = [
  "bitvec",
  "dirs",
@@ -619,6 +619,18 @@ dependencies = [
  "aoclib",
  "assembunny",
  "color-eyre",
+ "structopt",
+ "thiserror",
+]
+
+[[package]]
+name = "day24"
+version = "0.1.0"
+dependencies = [
+ "aoclib",
+ "color-eyre",
+ "parse-display 0.5.0",
+ "permutohedron",
  "structopt",
  "thiserror",
 ]
@@ -1377,6 +1389,12 @@ name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
+
+[[package]]
+name = "permutohedron"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b687ff7b5da449d39e418ad391e5e08da53ec334903ddbb921db208908fc372c"
 
 [[package]]
 name = "pin-project"
