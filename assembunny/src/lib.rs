@@ -127,11 +127,12 @@ impl Computer {
                     .map(|instruction| instruction.toggle());
             }
             Instruction::Out(value) => {
-                if let Some(Err(_)) = self
-                    .sender
-                    .as_ref()
-                    .map(|sender| sender.send(self.value(value)))
-                {
+                let value = self.value(value);
+                let sender = match self.sender.as_mut() {
+                    Some(sender) => sender,
+                    None => return false,
+                };
+                if sender.send(value).is_err() {
                     return false;
                 }
             }
