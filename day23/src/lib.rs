@@ -12,8 +12,13 @@ pub fn part1(input: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn part2(_input: &Path) -> Result<(), Error> {
-    unimplemented!()
+pub fn part2(input: &Path) -> Result<(), Error> {
+    let program: Vec<Instruction> = parse(input)?.collect();
+    let mut computer = Computer::from_program(program);
+    computer[Register::A] = 12;
+    computer.run();
+    println!("value in a after termination: {}", computer[Register::A]);
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
