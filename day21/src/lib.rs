@@ -68,10 +68,12 @@ impl Operation {
             },
             Self::RotateOn(c) => {
                 let c = c as u8;
-                let pos = buffer.iter().position(|ch| *ch == c).expect(&format!(
-                    "attemped to rotate on '{}' but that char not in buffer",
-                    c as char
-                ));
+                let pos = buffer.iter().position(|ch| *ch == c).unwrap_or_else(|| {
+                    panic!(
+                        "attemped to rotate on '{}' but that char not in buffer",
+                        c as char
+                    )
+                });
                 let rot = 1 + pos + if pos >= 4 { 1 } else { 0 };
                 buffer.rotate_right(rot);
             }
@@ -106,10 +108,12 @@ impl Operation {
             },
             Self::RotateOn(c) => {
                 let c = c as u8;
-                let pos = buffer.iter().position(|ch| *ch == c).expect(&format!(
-                    "attemped to rotate on '{}' but that char not in buffer",
-                    c as char
-                ));
+                let pos = buffer.iter().position(|ch| *ch == c).unwrap_or_else(|| {
+                    panic!(
+                        "attemped to rotate on '{}' but that char not in buffer",
+                        c as char
+                    )
+                });
                 // reversing the position can probably be done more elegantly, but this should work:
                 let rot = reverse_rotate(pos);
                 buffer.rotate_left(rot);

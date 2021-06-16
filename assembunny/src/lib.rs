@@ -35,10 +35,9 @@ impl From<Integer> for Value {
 }
 
 impl Value {
-    fn as_register(&self) -> Option<Register> {
-        match self {
-            Self::Register(register) => Some(*register),
-            _ => None,
+    fn as_register(&self, update: impl FnOnce(Register)) {
+        if let Value::Register(register) = self {
+            update(*register);
         }
     }
 }
@@ -111,20 +110,19 @@ impl Computer {
     fn step(&mut self) -> bool {
         match self.program[self.ip] {
             Instruction::Copy(value, register) => {
-                register
-                    .as_register()
-                    .map(|register| self[register] = self.value(value));
+                register.as_register(|register| self[register] = self.value(value));
             }
             Instruction::Increase(register) => {
-                register.as_register().map(|register| self[register] += 1);
+                register.as_register(|register| self[register] += 1);
             }
             Instruction::Decrease(register) => {
-                register.as_register().map(|register| self[register] -= 1);
+                register.as_register(|register| self[register] -= 1);
             }
             Instruction::Jnz(_, _) => {}
             Instruction::Toggle(value) => {
-                self.instruction_offset(value)
-                    .map(|instruction| instruction.toggle());
+                if let Some(instruction) = self.instruction_offset(value) {
+                    instruction.toggle();
+                }
             }
             Instruction::Out(value) => {
                 let value = self.value(value);

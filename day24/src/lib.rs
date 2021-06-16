@@ -56,16 +56,13 @@ pub fn traveling_salesman(input: &Path, return_to_start: bool) -> Result<usize, 
         if a > b {
             std::mem::swap(&mut a, &mut b);
         }
-        distances
-            .entry((a, b))
-            .or_insert_with(|| {
-                let a = pois[&a];
-                let b = pois[&b];
-                map.navigate(a, b)
-                    .map(|directions| directions.len())
-                    .unwrap_or(!0)
-            })
-            .clone()
+        *distances.entry((a, b)).or_insert_with(|| {
+            let a = pois[&a];
+            let b = pois[&b];
+            map.navigate(a, b)
+                .map(|directions| directions.len())
+                .unwrap_or(!0)
+        })
     };
     let max_poi = *pois.keys().max().ok_or(Error::NoPois)?;
     let mut ordering: Vec<_> = (1..=max_poi).collect();

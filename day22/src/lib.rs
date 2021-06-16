@@ -95,7 +95,7 @@ impl TryFrom<RawNode> for Node {
                 size: value.size,
                 used: value.used,
             })
-            .ok_or_else(move || Error::Invalid(value))
+            .ok_or(Error::Invalid(value))
     }
 }
 
@@ -144,10 +144,9 @@ fn make_map(input: &Path) -> Result<(Map, Vec<Point>), Error> {
         .max()
         .ok_or(Error::NoInput)?;
     let raw_map = GenericMap::procedural(max_x as usize + 1, max_y as usize + 1, |position| {
-        nodes
+        *nodes
             .get(&position)
             .expect("input covers all points in map")
-            .clone()
     });
     let empties = nodes
         .iter()
