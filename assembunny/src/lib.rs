@@ -1,4 +1,7 @@
-use std::ops::{Index, IndexMut};
+use std::{
+    ops::{Index, IndexMut},
+    thread::JoinHandle,
+};
 
 pub type Integer = i32;
 
@@ -52,6 +55,8 @@ pub enum Instruction {
     Jnz(Value, Value),
     #[display("tgl {0}")]
     Toggle(Value),
+    #[display("out {0}")]
+    Out(Value),
 }
 
 impl Instruction {
@@ -60,6 +65,7 @@ impl Instruction {
             Self::Increase(value) => Self::Decrease(value),
             Self::Decrease(value) => Self::Increase(value),
             Self::Toggle(value) => Self::Increase(value),
+            Self::Out(value) => Self::Increase(value),
             Self::Jnz(value, qty) => Self::Copy(value, qty),
             Self::Copy(value, qty) => Self::Jnz(value, qty),
         }
@@ -74,6 +80,7 @@ pub struct Computer {
     d: Integer,
     ip: usize,
     program: Vec<Instruction>,
+    sender: Option<std::sync::mpsc::SyncSender<Integer>>,
 }
 
 impl Computer {
@@ -82,6 +89,10 @@ impl Computer {
             program,
             ..Self::default()
         }
+    }
+
+    pub fn set_sender(&mut self, sender: impl Into<Option<std::sync::mpsc::SyncSender<Integer>>>) {
+        self.sender = sender.into();
     }
 
     pub fn value(&self, value: Value) -> Integer {
@@ -115,6 +126,15 @@ impl Computer {
                 self.instruction_offset(value)
                     .map(|instruction| instruction.toggle());
             }
+            Instruction::Out(value) => {
+                if let Some(Err(_)) = self
+                    .sender
+                    .as_ref()
+                    .map(|sender| sender.send(self.value(value)))
+                {
+                    return false;
+                }
+            }
         }
 
         let next_ip = self.ip as Integer
@@ -133,6 +153,14 @@ impl Computer {
     /// Run this computer until the program terminates naturally.
     pub fn run(&mut self) {
         while self.step() {}
+    }
+
+    /// Run this computer in its own thread until the program terminates naturally.
+    ///
+    /// Note that this consumes `self`. Ensure you've `set_sender` before calling this
+    /// if you want to receive output!
+    pub fn launch(mut self) -> JoinHandle<()> {
+        std::thread::spawn(move || self.run())
     }
 }
 
